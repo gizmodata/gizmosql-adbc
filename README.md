@@ -22,12 +22,13 @@ bindings — the successor to
 
 ## Why a Go driver?
 
-The GizmoSQL-specific behavior that today lives in the 1.x Python package —
-DDL/DML auto-detection and immediate execution (GizmoSQL's lazy-execution
-model), `RETURNING` handling, and the OAuth/SSO browser flow — moves into a
-native Go ADBC driver built on
+The GizmoSQL-specific behavior that previously lived in the 1.x Python
+package — DDL/DML auto-detection and immediate execution (GizmoSQL's
+lazy-execution model), `RETURNING` handling, geometry-preserving bulk
+ingest, and the OAuth/SSO browser flow — lives in a native Go ADBC
+driver built on
 [`apache/arrow-adbc`](https://github.com/apache/arrow-adbc)'s Flight SQL
-driver. Compiled to a C shared library, one implementation then serves
+driver. Compiled to a C shared library, one implementation serves
 **every** ADBC language: Python, Go, R, C/C++, C#, Rust, and JavaScript.
 
 ## Layout
@@ -36,8 +37,8 @@ driver. Compiled to a C shared library, one implementation then serves
 go/       Go driver (wraps arrow-adbc's flightsql driver) + cgo C exports
 python/   Python bindings — ships libadbc_driver_gizmosql in its wheels,
           keeps the 1.x dbapi.connect() API byte-compatible (PyPI:
-          adbc-driver-gizmosql 2.0)
-docs/     Design plan and work plan
+          adbc-driver-gizmosql 2.x)
+docs/     Design docs, migration guide, conformance results
 ```
 
 ## Features
@@ -55,8 +56,12 @@ docs/     Design plan and work plan
   byte-compatible — the verbatim 1.x test suite is this repo's release
   gate ([migration guide](docs/migrating-1x-to-2.md))
 
-See [docs/plan.md](docs/plan.md) for the design and
-[docs/WORKPLAN.md](docs/WORKPLAN.md) for build-out progress.
+See [docs/plan.md](docs/plan.md) for the design,
+[docs/migrating-1x-to-2.md](docs/migrating-1x-to-2.md) for the 1.x → 2.x
+migration guide, and
+[docs/quickstarts-conformance.md](docs/quickstarts-conformance.md) plus
+[docs/downstream-compat.md](docs/downstream-compat.md) for how the
+driver is validated.
 
 ## Usage (Go)
 
