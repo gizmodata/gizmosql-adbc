@@ -88,12 +88,19 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
       library via `adbc-driver-manager`
 - [ ] Port the full 1.x pytest suite; all green against the Go backend
 - [ ] Per-platform wheels embedding the shared library; sdist story
-- [ ] PyPI trusted publishing from this repo
+- [ ] PyPI trusted publishing from this repo — **requires Philip**: add
+      this repo + its publish workflow as a trusted publisher on the
+      existing `adbc-driver-gizmosql` PyPI project (publishers are bound
+      to repo+workflow, so the 1.x repo's grant does not carry over)
 
 ## Phase 6 — Other bindings & docs
 
 - [ ] R / C# / Rust / JS usage docs via driver manager + manifest
 - [ ] Migration guide 1.x → 2.0
+- [ ] Sunset the 1.x repo (after a post-2.0 maintenance window, decided
+      by Philip): pointer README, close/redirect open issues, then
+      GitHub-archive `gizmodata/adbc-driver-gizmosql` (read-only, history
+      and links preserved)
 
 ## Blockers / notes
 
