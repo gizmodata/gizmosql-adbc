@@ -60,7 +60,7 @@ jobs:
 
       - name: C-ABI smoke test (Python driver manager)
         run: |
-          pip install adbc-driver-manager
+          pip install adbc-driver-manager pyarrow
           python python/smoke_test_dylib.py
 
   lib-matrix:
@@ -88,6 +88,7 @@ jobs:
         working-directory: go
         env:
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
         shell: bash
         run: |
           case "$(go env GOOS)" in

@@ -45,6 +45,7 @@ jobs:
         working-directory: go
         env:
           GOARCH: ${{ matrix.goarch }}
+          CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
         shell: bash
         run: |
           go build -tags driverlib -buildmode=c-shared \
