@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	"github.com/apache/arrow-adbc/go/adbc"
+	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
 )
@@ -196,5 +197,99 @@ func TestIntegrationSelectStillStreams(t *testing.T) {
 	// result set arrives with the expected value.
 	if got := queryInt64(t, cnxn, "SELECT 41 + 1"); got != 42 {
 		t.Errorf("SELECT 41 + 1 = %d, want 42", got)
+	}
+}
+
+func TestIntegrationConnectionOptionsDelegate(t *testing.T) {
+	// Regression: the wrappers must expose the upstream driver's option
+	// interfaces (dbt-gizmosql sets adbc.connection.catalog at connect
+	// time and reads it back via adbc_current_catalog).
+	port := startServer(t)
+	cnxn := openConn(t, port)
+
+	opts, ok := cnxn.(adbc.GetSetOptions)
+	if !ok {
+		t.Fatal("connection wrapper does not expose adbc.GetSetOptions")
+	}
+	// dbt's flow: set the catalog at connect time, read it back later via
+	// adbc_current_catalog. (A get without a prior set is a server-side
+	// session error, unrelated to the wrapper.)
+	if err := opts.SetOption("adbc.connection.catalog", "memory"); err != nil {
+		t.Fatalf("SetOption(adbc.connection.catalog): %v", err)
+	}
+	catalog, err := opts.GetOption("adbc.connection.catalog")
+	if err != nil {
+		t.Fatalf("GetOption(adbc.connection.catalog): %v", err)
+	}
+	if catalog != "memory" {
+		t.Errorf("current catalog = %q, want memory", catalog)
+	}
+
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	if _, ok := stmt.(adbc.GetSetOptions); !ok {
+		t.Error("statement wrapper does not expose adbc.GetSetOptions")
+	}
+}
+
+func TestIntegrationDDLDMLRoutingAfterBind(t *testing.T) {
+	// Regression (found via sqlmesh-gizmosql): Bind must not permanently
+	// disable DDL/DML routing on a reused statement. Python's dbapi
+	// cursor keeps one ADBC statement for its lifetime and adbc_ingest
+	// binds on it — a later plain INSERT on the same statement was
+	// silently no-oped under lazy execution.
+	port := startServer(t)
+	cnxn := openConn(t, port)
+	ctx := context.Background()
+
+	execQuery(t, cnxn, "CREATE TABLE bindreset_t (id INT)")
+	defer execQuery(t, cnxn, "DROP TABLE IF EXISTS bindreset_t")
+
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+
+	// Step 1: a bulk ingest on this statement — exactly what Python's
+	// cursor.adbc_ingest() does (ingest options + Bind + ExecuteUpdate).
+	if err := stmt.SetOption(adbc.OptionKeyIngestTargetTable, "bindreset_src"); err != nil {
+		t.Fatalf("set ingest target: %v", err)
+	}
+	schema := arrow.NewSchema([]arrow.Field{{Name: "v", Type: arrow.PrimitiveTypes.Int32}}, nil)
+	bldr := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	bldr.Field(0).(*array.Int32Builder).AppendValues([]int32{7, 8, 9}, nil)
+	rec := bldr.NewRecordBatch()
+	bldr.Release()
+	if err := stmt.Bind(ctx, rec); err != nil {
+		rec.Release()
+		t.Fatalf("Bind: %v", err)
+	}
+	rec.Release()
+	if _, err := stmt.ExecuteUpdate(ctx); err != nil {
+		t.Fatalf("ingest ExecuteUpdate: %v", err)
+	}
+	if got := queryInt64(t, cnxn, "SELECT COUNT(*) FROM bindreset_src"); got != 3 {
+		t.Fatalf("ingest COUNT(*) = %d, want 3", got)
+	}
+
+	// Step 2: plain DDL/DML on the SAME statement, result never read —
+	// must still execute immediately.
+	if err := stmt.SetSqlQuery("INSERT INTO bindreset_t VALUES (1), (2)"); err != nil {
+		t.Fatal(err)
+	}
+	reader, affected, err := stmt.ExecuteQuery(ctx)
+	if err != nil {
+		t.Fatalf("INSERT after bind: %v", err)
+	}
+	reader.Release()
+	if affected != 2 {
+		t.Errorf("INSERT affected = %d, want 2 (routing disabled after Bind?)", affected)
+	}
+	if got := queryInt64(t, cnxn, "SELECT COUNT(*) FROM bindreset_t"); got != 2 {
+		t.Errorf("COUNT(*) = %d, want 2 — INSERT after Bind was silently lost", got)
 	}
 }

@@ -11,6 +11,34 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Fixed
+- **Option interfaces restored through the wrappers** (found by running
+  the dbt-gizmosql suite against 2.0): the database/connection/statement
+  wrappers now delegate the full `adbc.GetSetOptions` /
+  `adbc.PostInitOptions` surface to the upstream driver, so
+  `adbc.connection.catalog` (dbt's database credential) and friends work
+  again pre- and post-init, and `adbc_current_catalog` reads back.
+  Live-server regression test added.
+- **Silent data loss after bulk ingest** (found by running the
+  sqlmesh-gizmosql suite): `Bind`/`BindStream` left a sticky
+  bound-data flag that permanently disabled DDL/DML routing on a reused
+  statement — and upstream arrow-adbc 1.12 additionally leaves the bound
+  stream staged after a completed ingest and then rejects any later
+  plain-SQL execution on that statement. Python's dbapi cursor reuses
+  one ADBC statement for its lifetime, so after `cursor.adbc_ingest()`
+  every subsequent `INSERT`/`COMMIT` on that cursor was silently
+  no-oped. The statement wrapper now transparently recreates the inner
+  statement on the next `SetSqlQuery`/`SetSubstraitPlan` when stale
+  bound data exists, replaying any recorded statement options.
+  Live-server regression test (`TestIntegrationDDLDMLRoutingAfterBind`)
+  reproduces the ingest-then-DML flow.
+
+### Changed
+- Relaxed the Python bindings' `pyarrow` floor from `>=25.0.0` to
+  `>=14.0.0` — the bindings only touch pyarrow via adbc-driver-manager,
+  and the strict floor conflicted with downstream consumers (e.g. xorq
+  pins `pyarrow<22`) that otherwise run fine.
+
 ### Added
 - Repository scaffold: Go driver + Python bindings monorepo layout,
   design plan (`docs/plan.md`), and work plan (`docs/WORKPLAN.md`).

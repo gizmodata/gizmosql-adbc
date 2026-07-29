@@ -31,7 +31,11 @@ classifiers = [
 ]
 dependencies = [
     "adbc-driver-manager>=1.12.0",
-    "pyarrow>=25.0.0",
+    # Deliberately permissive: the bindings only touch pyarrow through
+    # adbc-driver-manager's dbapi. A >=25 floor conflicted with
+    # downstream consumers (e.g. xorq pins pyarrow<22) even though the
+    # driver works fine there at runtime.
+    "pyarrow>=14.0.0",
 ]
 
 [project.urls]

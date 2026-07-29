@@ -16,6 +16,7 @@ package gizmosql
 
 import (
 	"context"
+	"strings"
 	"sync"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -105,7 +106,7 @@ func (c *connection) NewStatement() (adbc.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &statement{Statement: stmt}, nil
+	return &statement{Statement: stmt, cnxn: c.Connection}, nil
 }
 
 func (c *connection) GetInfo(ctx context.Context, infoCodes []adbc.InfoCode) (array.RecordReader, error) {
@@ -131,11 +132,85 @@ func (c *connection) GetInfo(ctx context.Context, infoCodes []adbc.InfoCode) (ar
 // the 1.x Python driver (Bind switches to prepared-statement semantics).
 type statement struct {
 	adbc.Statement
-	query    string // last SetSqlQuery value; "" for substrait plans
+	cnxn     adbc.Connection // for transparent statement recreation
+	query    string          // last SetSqlQuery value; "" for substrait plans
 	hasBound bool
+	// setOpts records options applied to the inner statement so they can
+	// be replayed if the statement is recreated (per-operation
+	// adbc.ingest.* keys excluded).
+	setOpts []statementOption
+}
+
+type statementOption struct {
+	key   string
+	value any // string, []byte, int64, or float64
+}
+
+func (s *statement) recordOption(key string, value any) {
+	if strings.HasPrefix(key, "adbc.ingest.") {
+		return
+	}
+	s.setOpts = append(s.setOpts, statementOption{key: key, value: value})
+}
+
+// resetForNewQuery discards stale bound data by recreating the inner
+// statement. The upstream Flight SQL driver leaves s.bound/s.streamBind
+// staged after a completed bulk ingest, and (since arrow-adbc 1.12)
+// rejects any later plain-SQL execution on that statement with "must
+// set IngestTargetTable before bulk ingestion". Python's dbapi cursor
+// reuses one ADBC statement for its whole life (cursor.adbc_ingest then
+// cursor.execute), so without this reset the statement would be
+// permanently poisoned — and the sticky bound flag would also disable
+// DDL/DML routing, silently no-oping INSERT/COMMIT under GizmoSQL's
+// lazy execution (found via the sqlmesh-gizmosql test suite).
+func (s *statement) resetForNewQuery() error {
+	if !s.hasBound {
+		return nil
+	}
+	fresh, err := s.cnxn.NewStatement()
+	if err != nil {
+		return err
+	}
+	for _, opt := range s.setOpts {
+		switch v := opt.value.(type) {
+		case string:
+			err = fresh.SetOption(opt.key, v)
+		case []byte:
+			if o, ok := fresh.(adbc.GetSetOptions); ok {
+				err = o.SetOptionBytes(opt.key, v)
+			}
+		case int64:
+			if o, ok := fresh.(adbc.GetSetOptions); ok {
+				err = o.SetOptionInt(opt.key, v)
+			}
+		case float64:
+			if o, ok := fresh.(adbc.GetSetOptions); ok {
+				err = o.SetOptionDouble(opt.key, v)
+			}
+		}
+		if err != nil {
+			fresh.Close()
+			return err
+		}
+	}
+	old := s.Statement
+	s.Statement = fresh
+	s.hasBound = false
+	return old.Close()
+}
+
+func (s *statement) SetOption(key, value string) error {
+	if err := s.Statement.SetOption(key, value); err != nil {
+		return err
+	}
+	s.recordOption(key, value)
+	return nil
 }
 
 func (s *statement) SetSqlQuery(query string) error {
+	if err := s.resetForNewQuery(); err != nil {
+		return err
+	}
 	if err := s.Statement.SetSqlQuery(query); err != nil {
 		return err
 	}
@@ -144,6 +219,9 @@ func (s *statement) SetSqlQuery(query string) error {
 }
 
 func (s *statement) SetSubstraitPlan(plan []byte) error {
+	if err := s.resetForNewQuery(); err != nil {
+		return err
+	}
 	if err := s.Statement.SetSubstraitPlan(plan); err != nil {
 		return err
 	}
