@@ -139,10 +139,12 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
       integration suite green from the packaged library. (sdist
       deliberately skipped — a source build would require the Go
       toolchain; revisit if requested)
-- [ ] PyPI trusted publishing from this repo — **requires Philip**: add
-      this repo + its publish workflow as a trusted publisher on the
-      existing `adbc-driver-gizmosql` PyPI project (publishers are bound
-      to repo+workflow, so the 1.x repo's grant does not carry over)
+- [x] PyPI publish job (`pypi-publish` in release.yml): downloads the
+      five platform wheels and publishes via OIDC trusted publishing on
+      v* tags. **Still requires Philip**: register this repo + workflow
+      `release.yml` as a trusted publisher on the `adbc-driver-gizmosql`
+      PyPI project (publishers are bound to repo+workflow, so the 1.x
+      repo's grant does not carry over)
 
 ## Phase 6 — Other bindings & docs
 

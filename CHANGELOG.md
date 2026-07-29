@@ -34,6 +34,11 @@ Python bindings), succeeding the 1.x pure-Python driver.
   reproduces the ingest-then-DML flow.
 
 ### Changed
+- Release workflow now publishes the five platform wheels to PyPI via
+  OIDC trusted publishing on `v*` tag pushes (`pypi-publish` job) —
+  requires the `gizmosql-adbc` repo + `release.yml` workflow to be
+  registered as a trusted publisher on the `adbc-driver-gizmosql` PyPI
+  project.
 - Relaxed the Python bindings' `pyarrow` floor from `>=25.0.0` to
   `>=14.0.0` — the bindings only touch pyarrow via adbc-driver-manager,
   and the strict floor conflicted with downstream consumers (e.g. xorq
