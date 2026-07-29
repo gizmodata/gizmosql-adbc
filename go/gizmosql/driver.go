@@ -139,6 +139,15 @@ type statement struct {
 	// be replayed if the statement is recreated (per-operation
 	// adbc.ingest.* keys excluded).
 	setOpts []statementOption
+	// Ingest state, tracked for the geometry-aware ingest path
+	// (geoingest.go). Mirrors the options forwarded to the inner
+	// statement.
+	ingestTarget   string
+	ingestMode     string
+	ingestCatalog  string
+	ingestDBSchema string
+	ingestTemp     bool
+	boundSchema    *arrow.Schema
 }
 
 type statementOption struct {
@@ -196,6 +205,7 @@ func (s *statement) resetForNewQuery() error {
 	old := s.Statement
 	s.Statement = fresh
 	s.hasBound = false
+	s.boundSchema = nil
 	return old.Close()
 }
 
@@ -204,6 +214,18 @@ func (s *statement) SetOption(key, value string) error {
 		return err
 	}
 	s.recordOption(key, value)
+	switch key {
+	case adbc.OptionKeyIngestTargetTable:
+		s.ingestTarget = value
+	case adbc.OptionKeyIngestMode:
+		s.ingestMode = value
+	case adbc.OptionValueIngestTargetCatalog:
+		s.ingestCatalog = value
+	case adbc.OptionValueIngestTargetDBSchema:
+		s.ingestDBSchema = value
+	case adbc.OptionValueIngestTemporary:
+		s.ingestTemp = value == adbc.OptionValueEnabled
+	}
 	return nil
 }
 
@@ -215,6 +237,9 @@ func (s *statement) SetSqlQuery(query string) error {
 		return err
 	}
 	s.query = query
+	// A SQL query supersedes any pending ingest (mirrors the upstream
+	// driver clearing its ingest target on SetSqlQuery).
+	s.ingestTarget = ""
 	return nil
 }
 
@@ -234,6 +259,7 @@ func (s *statement) Bind(ctx context.Context, values arrow.RecordBatch) error {
 		return err
 	}
 	s.hasBound = true
+	s.boundSchema = values.Schema()
 	return nil
 }
 
@@ -242,7 +268,19 @@ func (s *statement) BindStream(ctx context.Context, stream array.RecordReader) e
 		return err
 	}
 	s.hasBound = true
+	s.boundSchema = stream.Schema()
 	return nil
+}
+
+func (s *statement) ExecuteUpdate(ctx context.Context) (int64, error) {
+	// Geometry-aware ingest: geoarrow.* columns need the interim-table
+	// path (see geoingest.go); everything else delegates untouched.
+	if s.ingestTarget != "" {
+		if geoCols := geoFieldNames(s.boundSchema); len(geoCols) > 0 {
+			return s.executeGeoIngest(ctx, geoCols)
+		}
+	}
+	return s.Statement.ExecuteUpdate(ctx)
 }
 
 func (s *statement) ExecuteQuery(ctx context.Context) (array.RecordReader, int64, error) {

@@ -11,6 +11,28 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.1] - 2026-07-29
+
+### Fixed
+- **Geometry columns now ingest as `GEOMETRY`, not `BLOB`**
+  ([adbc-driver-gizmosql#5](https://github.com/gizmodata/adbc-driver-gizmosql/issues/5)):
+  when bound ingest data contains `geoarrow.*` Arrow extension columns
+  (as produced by fetching GizmoSQL geometry columns), the driver now
+  routes the bulk ingest through a session-temporary interim table,
+  restores the geometry type via `ST_GeomFromWKB`, and materializes into
+  the target per the requested mode. This fixes both create-family modes
+  (previously produced `BLOB` columns) and append mode into existing
+  `GEOMETRY` tables (previously failed server-side with a blob→geometry
+  conversion error). Non-geometry ingests are unaffected (plain
+  delegation). Covered by a live-server regression test across all four
+  ingest modes with WKB round-trip value verification.
+
+### Changed
+- The PyPI package description now mirrors the repository README
+  (relative links rewritten to absolute GitHub URLs), synced by
+  `scripts/sync_pypi_readme.py` in every wheel build so the two cannot
+  drift — matching the 1.x package's behavior.
+
 ### Added
 - Go module publishing: `go/vX.Y.Z` tags version the
   `github.com/gizmodata/gizmosql-adbc/go` module (its own v1 line,

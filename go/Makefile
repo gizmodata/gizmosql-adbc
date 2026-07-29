@@ -29,6 +29,7 @@ test:
 # Build the platform wheel: shared library first, then bundle it inside
 # the Python package.
 wheel: $(LIB)
+	python3 ../scripts/sync_pypi_readme.py
 	cp $(LIB) ../python/src/adbc_driver_gizmosql/
 	cd ../python && python -m build --wheel
 

@@ -9,6 +9,8 @@ package gizmosql
 
 import (
 	"context"
+	"encoding/binary"
+	"math"
 	"testing"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -291,5 +293,138 @@ func TestIntegrationDDLDMLRoutingAfterBind(t *testing.T) {
 	}
 	if got := queryInt64(t, cnxn, "SELECT COUNT(*) FROM bindreset_t"); got != 2 {
 		t.Errorf("COUNT(*) = %d, want 2 — INSERT after Bind was silently lost", got)
+	}
+}
+
+// wkbPoint returns the little-endian WKB encoding of POINT(x y).
+func wkbPoint(x, y float64) []byte {
+	buf := make([]byte, 21)
+	buf[0] = 1 // little endian
+	binary.LittleEndian.PutUint32(buf[1:5], 1)
+	binary.LittleEndian.PutUint64(buf[5:13], math.Float64bits(x))
+	binary.LittleEndian.PutUint64(buf[13:21], math.Float64bits(y))
+	return buf
+}
+
+func geoRecord(t *testing.T, xs, ys []float64) arrow.RecordBatch {
+	t.Helper()
+	schema := arrow.NewSchema([]arrow.Field{
+		{Name: "id", Type: arrow.PrimitiveTypes.Int32},
+		{Name: "geom", Type: arrow.BinaryTypes.Binary, Nullable: true,
+			Metadata: arrow.NewMetadata(
+				[]string{"ARROW:extension:name", "ARROW:extension:metadata"},
+				[]string{"geoarrow.wkb", "{}"})},
+	}, nil)
+	bldr := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer bldr.Release()
+	for i := range xs {
+		bldr.Field(0).(*array.Int32Builder).Append(int32(i + 1))
+		bldr.Field(1).(*array.BinaryBuilder).Append(wkbPoint(xs[i], ys[i]))
+	}
+	return bldr.NewRecordBatch()
+}
+
+func ingestGeo(t *testing.T, cnxn adbc.Connection, table, mode string, rec arrow.RecordBatch) int64 {
+	t.Helper()
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	if err := stmt.SetOption(adbc.OptionKeyIngestTargetTable, table); err != nil {
+		t.Fatal(err)
+	}
+	if mode != "" {
+		if err := stmt.SetOption(adbc.OptionKeyIngestMode, mode); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if err := stmt.Bind(context.Background(), rec); err != nil {
+		t.Fatal(err)
+	}
+	n, err := stmt.ExecuteUpdate(context.Background())
+	if err != nil {
+		t.Fatalf("geo ingest (%s): %v", mode, err)
+	}
+	return n
+}
+
+func queryStr(t *testing.T, cnxn adbc.Connection, sql string) string {
+	t.Helper()
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer stmt.Close()
+	if err := stmt.SetSqlQuery(sql); err != nil {
+		t.Fatal(err)
+	}
+	reader, _, err := stmt.ExecuteQuery(context.Background())
+	if err != nil {
+		t.Fatalf("ExecuteQuery(%q): %v", sql, err)
+	}
+	defer reader.Release()
+	if !reader.Next() {
+		t.Fatalf("no rows from %q", sql)
+	}
+	return reader.RecordBatch().Column(0).ValueStr(0)
+}
+
+func TestIntegrationGeoArrowIngest(t *testing.T) {
+	// Regression for gizmodata/adbc-driver-gizmosql#5: geoarrow.wkb
+	// columns must ingest as GEOMETRY, not BLOB — in every mode.
+	port := startServer(t)
+	cnxn := openConn(t, port)
+	rec := geoRecord(t, []float64{0, 1}, []float64{0, 1})
+	defer rec.Release()
+
+	// create: table must come out with a GEOMETRY column
+	if n := ingestGeo(t, cnxn, "geo_create", "", rec); n != 2 {
+		t.Errorf("create ingest rows = %d, want 2", n)
+	}
+	typ := queryStr(t, cnxn,
+		"SELECT column_type FROM (DESCRIBE geo_create) WHERE column_name = 'geom'")
+	if typ != "GEOMETRY" {
+		t.Errorf("create-mode geom type = %q, want GEOMETRY", typ)
+	}
+	if wkt := queryStr(t, cnxn,
+		"SELECT st_astext(geom) FROM geo_create WHERE id = 2"); wkt != "POINT (1 1)" {
+		t.Errorf("round-tripped value = %q, want POINT (1 1)", wkt)
+	}
+
+	// append into an existing GEOMETRY table (the reporter's second repro)
+	execQuery(t, cnxn, "CREATE TABLE geo_append (id INT, geom GEOMETRY)")
+	if n := ingestGeo(t, cnxn, "geo_append", adbc.OptionValueIngestModeAppend, rec); n != 2 {
+		t.Errorf("append ingest rows = %d, want 2", n)
+	}
+	if cnt := queryStr(t, cnxn, "SELECT COUNT(*) FROM geo_append"); cnt != "2" {
+		t.Errorf("append count = %s, want 2", cnt)
+	}
+
+	// replace over the created table
+	if n := ingestGeo(t, cnxn, "geo_create", adbc.OptionValueIngestModeReplace, rec); n != 2 {
+		t.Errorf("replace ingest rows = %d, want 2", n)
+	}
+
+	// create_append: once into a fresh name, once more to append
+	ingestGeo(t, cnxn, "geo_ca", adbc.OptionValueIngestModeCreateAppend, rec)
+	ingestGeo(t, cnxn, "geo_ca", adbc.OptionValueIngestModeCreateAppend, rec)
+	if cnt := queryStr(t, cnxn, "SELECT COUNT(*) FROM geo_ca"); cnt != "4" {
+		t.Errorf("create_append count = %s, want 4", cnt)
+	}
+
+	// non-geometry ingest still takes the plain path
+	schema := arrow.NewSchema([]arrow.Field{{Name: "v", Type: arrow.PrimitiveTypes.Int32}}, nil)
+	bldr := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	bldr.Field(0).(*array.Int32Builder).Append(7)
+	plain := bldr.NewRecordBatch()
+	bldr.Release()
+	defer plain.Release()
+	if n := ingestGeo(t, cnxn, "plain_t", "", plain); n != 1 {
+		t.Errorf("plain ingest rows = %d, want 1", n)
+	}
+	if typ := queryStr(t, cnxn,
+		"SELECT column_type FROM (DESCRIBE plain_t) WHERE column_name = 'v'"); typ != "INTEGER" {
+		t.Errorf("plain column type = %q", typ)
 	}
 }

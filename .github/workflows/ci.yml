@@ -89,6 +89,7 @@ jobs:
       - name: Build shared library and wheel
         run: |
           make -C go lib
+          python3 scripts/sync_pypi_readme.py
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
           pipx run build --wheel python || (pip install build && cd python && python -m build --wheel)
 
@@ -169,6 +170,7 @@ jobs:
           if [ "${{ matrix.goarch }}" = "amd64" ] && [ "$RUNNER_OS" = "macOS" ]; then
             export _PYTHON_HOST_PLATFORM="macosx-11.0-x86_64"
           fi
+          python3 scripts/sync_pypi_readme.py
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
           pip install build
           cd python && python -m build --wheel
