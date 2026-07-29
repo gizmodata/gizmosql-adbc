@@ -124,8 +124,12 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 - [x] The 1.x pytest suite against the Go backend: `test_integration.py`
       (all 34 tests), `test_oauth_unit.py`, `test_sql_routing_unit.py`,
       and `conftest.py` are **verbatim copies** — all green.
-      `test_connect_unit.py` still needs adaptation (its mocks patch
-      `adbc_driver_flightsql.connect`, a seam 2.0 no longer has)
+      `test_connect_unit.py` is adapted (same tests/assertions; mock
+      seams moved to `adbc_driver_manager.AdbcDatabase` since the
+      flightsql layer no longer exists, gizmosql:// rewrite assertions
+      became pass-through assertions with the rewrite covered in Go, and
+      the 1.x `TestIsDdlDml` class carried over verbatim) — 58 tests
+      green
 - [ ] Per-platform wheels embedding the shared library; sdist story
 - [ ] PyPI trusted publishing from this repo — **requires Philip**: add
       this repo + its publish workflow as a trusted publisher on the

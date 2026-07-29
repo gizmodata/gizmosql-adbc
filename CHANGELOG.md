@@ -74,3 +74,6 @@ Python bindings), succeeding the 1.x pure-Python driver.
   the bundled Go shared library. The 1.x integration suite (34 tests),
   OAuth unit tests, and SQL-routing unit tests run **verbatim** against
   the Go backend — all green — and now run in CI on linux and macos.
+  `test_connect_unit.py` is adapted to the 2.0 seams (databases built
+  via `adbc_driver_manager.AdbcDatabase` with the bundled Go driver)
+  with the same test intents and the 1.x `TestIsDdlDml` cases verbatim.
