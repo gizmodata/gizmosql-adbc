@@ -13,7 +13,7 @@ REPO = "https://github.com/gizmodata/gizmosql-adbc"
 BLOB = f"{REPO}/blob/main"
 
 root = pathlib.Path(__file__).resolve().parent.parent
-readme = (root / "README.md").read_text()
+readme = (root / "README.md").read_text(encoding="utf-8")
 
 
 def absolutize(match: re.Match) -> str:
@@ -27,5 +27,5 @@ synced = re.sub(r"\[([^\]]*)\]\(([^)\s]+)\)", absolutize, readme)
 header = (
     "<!-- Generated from the repo README by scripts/sync_pypi_readme.py — do not edit. -->\n\n"
 )
-(root / "python" / "README.md").write_text(header + synced)
+(root / "python" / "README.md").write_text(header + synced, encoding="utf-8")
 print(f"synced {len(synced)} chars into python/README.md")
