@@ -82,3 +82,9 @@ Python bindings), succeeding the 1.x pure-Python driver.
   (auditwheel-repaired to manylinux), macOS arm64/amd64
   (MACOSX_DEPLOYMENT_TARGET 11.0), and windows amd64, and attached to
   GitHub Releases alongside the standalone library tarballs.
+- Conformance + docs (Phase 6, first slice): the Columnar
+  adbc-quickstarts gizmosql examples pass for python and go with
+  `driver = "gizmosql"` resolved through the shipped driver manifest
+  (status table in `docs/quickstarts-conformance.md`), and a 1.x → 2.0
+  migration guide (`docs/migrating-1x-to-2.md`) documents the
+  byte-compatible API and the under-the-hood changes.

@@ -146,8 +146,17 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 
 ## Phase 6 — Other bindings & docs
 
+- [~] Columnar adbc-quickstarts conformance (acceptance gate 3): python
+      and go quickstarts pass with `driver = "gizmosql"` resolved via
+      the shipped manifest against a live server — these cover both
+      driver-manager implementations (C library + Go drivermgr) that
+      the other seven languages delegate to. Remaining languages need
+      their toolchains; status table in
+      `docs/quickstarts-conformance.md`
+- [x] Migration guide 1.x → 2.0 (`docs/migrating-1x-to-2.md`)
 - [ ] R / C# / Rust / JS usage docs via driver manager + manifest
-- [ ] Migration guide 1.x → 2.0
+      (README has the by-name manifest section; per-language snippets
+      pending)
 - [ ] Sunset the 1.x repo (after a post-2.0 maintenance window, decided
       by Philip): pointer README, close/redirect open issues, then
       GitHub-archive `gizmodata/adbc-driver-gizmosql` (read-only, history
