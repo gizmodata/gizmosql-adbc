@@ -1,0 +1,95 @@
+name: gizmosql-adbc-release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-libs:
+    name: lib (${{ matrix.platform }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux_amd64
+            ext: so
+          - os: ubuntu-24.04-arm
+            platform: linux_arm64
+            ext: so
+          - os: macos-latest
+            platform: macos_arm64
+            ext: dylib
+          - os: macos-latest
+            platform: macos_amd64
+            ext: dylib
+            goarch: amd64
+          - os: windows-latest
+            platform: windows_amd64
+            ext: dll
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build shared library
+        working-directory: go
+        env:
+          GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          go build -tags driverlib -buildmode=c-shared \
+            -o "build/libadbc_driver_gizmosql.${{ matrix.ext }}" ./pkg/gizmosql
+
+      - name: Package artifact
+        shell: bash
+        run: |
+          VERSION="${GITHUB_REF_NAME:-dev}"
+          PKG="libadbc_driver_gizmosql-${VERSION}-${{ matrix.platform }}"
+          mkdir -p "dist/$PKG"
+          cp go/build/libadbc_driver_gizmosql.${{ matrix.ext }} "dist/$PKG/"
+          cp packaging/gizmosql.toml.in LICENSE "dist/$PKG/"
+          cd dist && tar czf "$PKG.tar.gz" "$PKG"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ matrix.platform }}
+          path: dist/*.tar.gz
+
+  release:
+    needs: build-libs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          merge-multiple: true
+
+      - name: Extract release notes from CHANGELOG.md
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          awk -v ver="$VERSION" '
+            $0 ~ "^## \\[" ver "\\]" { found=1; next }
+            found && /^## \[/ { exit }
+            found { print }
+          ' CHANGELOG.md > release-notes.md
+          if ! [ -s release-notes.md ]; then
+            echo "No CHANGELOG section found for $VERSION" > release-notes.md
+          fi
+          cat release-notes.md
+
+      - uses: softprops/action-gh-release@v3
+        with:
+          body_path: release-notes.md
+          files: dist/*.tar.gz

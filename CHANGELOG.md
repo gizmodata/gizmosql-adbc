@@ -59,3 +59,10 @@ Python bindings), succeeding the 1.x pure-Python driver.
   Python's stock `adbc_driver_manager` against a live server: gizmosql://
   URI, immediate DDL/DML, and RETURNING persistence — all served from
   the Go driver inside the shared library.
+- Phase 4 (second slice): ADBC driver-manifest template
+  (`packaging/gizmosql.toml.in`, entrypoint `AdbcDriverInit`) so
+  `driver = "gizmosql"` resolves by name in every driver manager; CI now
+  builds the shared library on linux amd64/arm64, macOS arm64/amd64, and
+  windows amd64 and runs the Python C-ABI smoke test on linux+macos; a
+  release workflow packages per-platform tarballs and creates a GitHub
+  Release with CHANGELOG-extracted notes on v* tag pushes.

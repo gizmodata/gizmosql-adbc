@@ -1,0 +1,33 @@
+# ADBC driver manifest template for GizmoSQL.
+#
+# Fill in the shared-library path(s) for your platform(s) and install as
+# `gizmosql.toml` into an ADBC driver search path, e.g.:
+#   Linux:   ~/.config/adbc/drivers/gizmosql.toml
+#   macOS:   ~/Library/Application Support/ADBC/Drivers/gizmosql.toml
+#   Windows: %LOCALAPPDATA%\ADBC\Drivers\gizmosql.toml
+# (or any directory listed in the ADBC_DRIVER_PATH environment variable).
+#
+# Once installed, every ADBC driver manager can load the driver by name:
+#   Python:  adbc_driver_manager.dbapi.connect(driver="gizmosql", ...)
+#   profiles: driver = "gizmosql"
+
+manifest_version = 1
+
+name = 'GizmoSQL'
+version = '@VERSION@'
+publisher = 'GizmoData'
+license = 'Apache-2.0'
+url = 'https://github.com/gizmodata/gizmosql-adbc'
+
+[ADBC]
+version = '1.1.0'
+
+[Driver]
+entrypoint = 'AdbcDriverInit'
+
+[Driver.shared]
+linux_amd64 = '@PREFIX@/libadbc_driver_gizmosql.so'
+linux_arm64 = '@PREFIX@/libadbc_driver_gizmosql.so'
+macos_amd64 = '@PREFIX@/libadbc_driver_gizmosql.dylib'
+macos_arm64 = '@PREFIX@/libadbc_driver_gizmosql.dylib'
+windows_amd64 = '@PREFIX@\\adbc_driver_gizmosql.dll'

@@ -54,3 +54,52 @@ jobs:
       - name: Integration tests
         working-directory: go
         run: go test -v -run Integration ./...
+
+      - name: Build shared library
+        run: make -C go lib
+
+      - name: C-ABI smoke test (Python driver manager)
+        run: |
+          pip install adbc-driver-manager
+          python python/smoke_test_dylib.py
+
+  lib-matrix:
+    name: lib (${{ matrix.os }}${{ matrix.goarch != '' && format(' {0}', matrix.goarch) || '' }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+          - os: ubuntu-24.04-arm
+          - os: macos-latest
+          - os: macos-latest
+            goarch: amd64
+          - os: windows-latest
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build shared library
+        working-directory: go
+        env:
+          GOARCH: ${{ matrix.goarch }}
+        shell: bash
+        run: |
+          case "$(go env GOOS)" in
+            windows) EXT=dll ;;
+            darwin)  EXT=dylib ;;
+            *)       EXT=so ;;
+          esac
+          go build -tags driverlib -buildmode=c-shared \
+            -o "build/libadbc_driver_gizmosql.$EXT" ./pkg/gizmosql
+          ls -la build/
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: libadbc_driver_gizmosql-${{ matrix.os }}${{ matrix.goarch != '' && format('-{0}', matrix.goarch) || '' }}
+          path: go/build/libadbc_driver_gizmosql.*

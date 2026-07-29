@@ -222,6 +222,38 @@ result, err := gizmosql.GetOAuthToken(ctx, gizmosql.OAuthConfig{
 // result.Token → use as password with username "token"
 ```
 
+## Usage (any language, via driver manifest)
+
+Build (or download from a release) the shared library, then install a
+[driver manifest](https://arrow.apache.org/adbc/current/format/driver_manifests.html)
+so every ADBC driver manager can load the driver **by name**:
+
+```bash
+make -C go lib   # produces go/build/libadbc_driver_gizmosql.{so,dylib,dll}
+```
+
+Copy `packaging/gizmosql.toml.in` to a driver search path as
+`gizmosql.toml` (e.g. `~/.config/adbc/drivers/` on Linux,
+`~/Library/Application Support/ADBC/Drivers/` on macOS, or any directory
+in `ADBC_DRIVER_PATH`), filling in the library path. Then:
+
+```python
+# Python — no GizmoSQL-specific package needed:
+import adbc_driver_manager.dbapi as dbapi
+
+with dbapi.connect(driver="gizmosql", db_kwargs={
+    "uri": "gizmosql://localhost:31337",
+    "username": "gizmosql_user",
+    "password": "gizmosql_password",
+}) as conn:
+    ...
+```
+
+The same `driver = "gizmosql"` reference works from C/C++, R, C#, Rust,
+and in [connection profiles](https://arrow.apache.org/adbc/current/format/connection_profiles.html)
+— with DDL/DML immediacy, `RETURNING` handling, `gizmosql://` URIs, and
+OAuth all provided by the shared library.
+
 ## Usage (Python)
 
 Until 2.0 ships from this repo, use the 1.x driver:

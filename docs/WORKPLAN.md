@@ -99,10 +99,17 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
       from Python's driver manager (gizmosql:// + DDL/DML immediacy +
       RETURNING persistence). Exports AdbcDriverInit plus
       AdbcDriverGizmosqlInit/GizmoSQLDriverInit aliases
-- [ ] Driver manifest so `driver = "gizmosql"` resolves via driver managers
-- [ ] CI build matrix: manylinux amd64/arm64, macOS arm64/x86_64,
-      windows amd64; binaries attached to GitHub Releases on tag push
-      (CHANGELOG-extracted release notes, per house release pattern)
+- [x] Driver manifest template (`packaging/gizmosql.toml.in`,
+      entrypoint `AdbcDriverInit`) + README instructions so
+      `driver = "gizmosql"` resolves via driver managers
+- [x] CI build matrix: linux amd64/arm64, macOS arm64/amd64
+      (cross-compiled), windows amd64 — artifacts uploaded per platform;
+      C-ABI smoke test (Python driver manager + live server) added to
+      the main CI job on linux+macos
+- [x] Release workflow (`release.yml`): on v* tag push, builds the
+      5-platform matrix, packages tarballs (lib + manifest template +
+      LICENSE), creates a GitHub Release with CHANGELOG-extracted notes
+      (untested until the first tag — Philip cuts releases)
 
 ## Phase 5 — Python bindings (adbc-driver-gizmosql 2.0)
 
