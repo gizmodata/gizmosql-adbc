@@ -11,6 +11,17 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.2] - 2026-07-29
+
+### Changed
+- The PyPI package description is now a hand-maintained, Python-focused
+  README (`python/README.md`) modeled on the 1.x driver's README —
+  install, DBAPI usage, URI schemes, DDL/DML immediacy, OAuth/SSO,
+  connection profiles, bulk ingest, observability, and API reference —
+  instead of mirroring the repository README (which centers on the Go
+  driver and multi-language usage). The `scripts/sync_pypi_readme.py`
+  mirror step introduced in 2.0.1 is removed from the wheel builds.
+
 ## [2.0.1] - 2026-07-29
 
 ### Fixed
