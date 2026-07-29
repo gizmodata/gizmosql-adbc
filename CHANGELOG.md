@@ -11,6 +11,14 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Added
+- Go module publishing: `go/vX.Y.Z` tags version the
+  `github.com/gizmodata/gizmosql-adbc/go` module (its own v1 line,
+  independent of the Python `v*` tags), and a `go-module.yml` workflow
+  publishes the version through proxy.golang.org and warms the
+  pkg.go.dev docs cache on tag push (adbc-driver-quack pattern). First
+  Go module release: `go/v1.0.0`.
+
 ## [2.0.0] - 2026-07-29
 
 ### Added (release packaging)

@@ -78,8 +78,11 @@ docker run --name gizmosql \
 ### Install
 
 ```bash
-go get github.com/gizmodata/gizmosql-adbc/go
+go get github.com/gizmodata/gizmosql-adbc/go@latest
 ```
+
+(The Go module is versioned by `go/vX.Y.Z` tags — its own line,
+independent of this repo's Python/release `v*` tags.)
 
 ### Password authentication
 

@@ -1,0 +1,40 @@
+name: gizmosql-adbc-go-module
+
+# The Go module github.com/gizmodata/gizmosql-adbc/go is versioned by
+# go/vX.Y.Z tags (subdirectory-module tag convention; its version line
+# is independent of the Python/release v* tags). Publishing is implicit
+# via the Go module proxy — this workflow makes it immediate: fetching
+# through proxy.golang.org caches the version immutably, and POSTing to
+# pkg.go.dev/fetch warms the docs page (which otherwise renders a
+# "Fetch" stub for the first visitor).
+
+on:
+  push:
+    tags:
+      - "go/v*.*.*"
+
+jobs:
+  publish-and-warm:
+    name: Warm module proxy + pkg.go.dev
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-go@v7
+        with:
+          go-version: "stable"
+
+      - name: Fetch through proxy.golang.org (publishes the version)
+        env:
+          GOPROXY: https://proxy.golang.org
+        run: |
+          version="${GITHUB_REF_NAME#go/}"
+          go mod download -x "github.com/gizmodata/gizmosql-adbc/go@${version}"
+
+      - name: Trigger pkg.go.dev fetch
+        # Not a contractually stable API and rate-limited under load,
+        # hence `|| true` (same pattern as adbc-driver-quack).
+        run: |
+          version="${GITHUB_REF_NAME#go/}"
+          curl -sS -X POST \
+            "https://pkg.go.dev/fetch/github.com/gizmodata/gizmosql-adbc/go@${version}" \
+            -o /dev/null -w "pkg.go.dev fetch (${version}): HTTP %{http_code} in %{time_total}s\n" \
+            || true
