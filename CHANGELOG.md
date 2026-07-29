@@ -14,3 +14,11 @@ Python bindings), succeeding the 1.x pure-Python driver.
 ### Added
 - Repository scaffold: Go driver + Python bindings monorepo layout,
   design plan (`docs/plan.md`), and work plan (`docs/WORKPLAN.md`).
+- Go module `github.com/gizmodata/gizmosql-adbc/go` pinned to
+  `arrow-adbc/go/adbc` v1.12.0: `gizmosql.NewDriver(alloc)` pass-through
+  driver wrapping the upstream Flight SQL driver with Database /
+  Connection / Statement interception points, and the `gizmosql://` URI
+  scheme (TLS by default, `?transport=tcp` for plaintext) rewritten onto
+  `flightsql://`. Unit tests cover the URI rewrite, option-map
+  non-mutation, downstream delegation (via a recording fake), and
+  real-driver option validation.

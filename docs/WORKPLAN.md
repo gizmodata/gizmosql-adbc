@@ -19,15 +19,32 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 - When blocked (credentials, design fork, upstream bug), record the blocker
   at the bottom of this file and move to the next unblocked item.
 
+## Acceptance gates for 2.0 (Philip, 2026-07-29)
+
+1. The **full 1.x pytest suite, verbatim** (copied from
+   `gizmodata/adbc-driver-gizmosql`, not rewritten) passes against the
+   2.0 Python bindings backed by the Go driver.
+2. Native **Go tests** cover the driver internals (unit + live-server
+   integration).
+3. Every **gizmosql example in the Columnar ADBC QuickStarts repo**
+   (https://github.com/columnar-tech/adbc-quickstarts — e.g.
+   `cpp/flightsql/gizmosql`, and the other languages' gizmosql examples,
+   which today use the generic Flight SQL Go driver) works when pointed
+   at this driver's shared library.
+4. GizmoSQL's **lazy-execution model** is handled inside the driver
+   (DDL/DML immediate execution, RETURNING) so ALL consumers get correct
+   behavior without client-side workarounds.
+
 ## Phase 1 — Go pass-through driver
 
-- [ ] `go/` module `github.com/gizmodata/gizmosql-adbc/go` (Go ≥ 1.24),
-      pinned to latest released `arrow-adbc/go/adbc` (v1.12.x line)
-- [ ] `go/gizmosql` package: `NewDriver(alloc)` delegating 100% to the
+- [x] `go/` module `github.com/gizmodata/gizmosql-adbc/go` (Go 1.26),
+      pinned to `arrow-adbc/go/adbc` v1.12.0
+- [x] `go/gizmosql` package: `NewDriver(alloc)` delegating 100% to the
       upstream flightsql driver (adbc.Driver / Database / Connection /
       Statement wrappers in place, no behavior change yet)
-- [ ] `gizmosql://` URI option handling: rewrite to `flightsql://`
-      (TLS default, `?transport=tcp`), unit tests
+- [x] `gizmosql://` URI option handling: rewrite to `flightsql://`
+      (TLS default, `?transport=tcp`), unit tests (recording-fake
+      downstream assertions + real-driver option validation)
 - [ ] Go integration harness: spin up GizmoSQL server (subprocess or
       Docker) with self-signed TLS; smoke test `SELECT 1`
 - [ ] GitHub Actions CI: gofmt/vet/build/test on linux + macos
@@ -80,4 +97,9 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 
 ## Blockers / notes
 
-(none yet)
+- The Database/Connection/Statement wrappers embed the upstream
+  interfaces, which hides upstream *optional* interfaces
+  (`adbc.GetSetOptions`, `adbc.DatabaseLogging`, statistics, ...) from
+  type assertions. Before the cgo export phase (Phase 4), add explicit
+  delegation for the optional interfaces the C driver-manager layer
+  probes for. (Noted 2026-07-29 during Phase 1.)
