@@ -1,0 +1,15 @@
+# Binaries and build output
+dist/
+build/
+*.so
+*.dylib
+*.dll
+*.egg-info/
+__pycache__/
+.venv/
+.pytest_cache/
+.ruff_cache/
+# Go
+go/vendor/
+# OS
+.DS_Store
