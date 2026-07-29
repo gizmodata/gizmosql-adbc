@@ -40,3 +40,13 @@ Python bindings), succeeding the 1.x pure-Python driver.
   `test_sql_routing_unit.py`; live-server tests cover
   execute-without-fetch, RETURNING persistence and row delivery, and
   streaming SELECTs.
+- OAuth/SSO authentication (Phase 3): `GetOAuthToken` ports the 1.x
+  browser code-exchange flow (`/oauth/initiate` → browser → poll
+  `/oauth/token/{uuid}`) to Go stdlib with context cancellation, HTTPS→
+  HTTP endpoint discovery, and a headless mode (stderr URL or
+  `AuthURLHandler` callback). New `adbc.gizmosql.*` database options
+  (`auth_type=external`, `oauth.url/.port/.timeout_seconds/
+  .poll_interval_seconds/.open_browser/.tls_skip_verify`) run the flow at
+  database creation and inject the identity token as Basic Auth
+  (username "token"). Unit tests mirror 1.x `test_oauth_unit.py` against
+  mock OAuth HTTP servers.

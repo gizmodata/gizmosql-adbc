@@ -62,7 +62,11 @@ func (d *driverImpl) NewDatabaseWithOptions(
 func (d *driverImpl) NewDatabaseWithOptionsContext(
 	ctx context.Context, opts map[string]string, dialOpts ...grpc.DialOption,
 ) (adbc.Database, error) {
-	db, err := d.inner.NewDatabaseWithOptionsContext(ctx, rewriteOptions(opts), dialOpts...)
+	resolved, err := applyGizmoSQLOptions(ctx, rewriteOptions(opts))
+	if err != nil {
+		return nil, err
+	}
+	db, err := d.inner.NewDatabaseWithOptionsContext(ctx, resolved, dialOpts...)
 	if err != nil {
 		return nil, err
 	}

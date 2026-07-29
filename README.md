@@ -187,12 +187,40 @@ Routing applies to plain SQL only — statements with bound parameters
 (`Bind`/`BindStream`) or Substrait plans use standard prepared-statement
 semantics.
 
-### OAuth/SSO authentication *(coming in Phase 3)*
+### OAuth/SSO authentication
 
-The 1.x Python driver's browser code-exchange flow
-(`/oauth/initiate` → browser → `/oauth/token/{uuid}`) moves into the Go
-driver, exposed via `adbc.gizmosql.*` options with a headless mode for
-embedded use.
+When your GizmoSQL server is configured with OAuth, set
+`adbc.gizmosql.auth_type` to `external` — the driver initiates the flow,
+opens your browser to the identity provider, polls for completion, and
+connects with the identity token via Basic Auth (username `token`):
+
+```go
+db, err := drv.NewDatabase(map[string]string{
+	"uri":                     "gizmosql://gizmosql.example.com:31337",
+	"adbc.gizmosql.auth_type": "external",
+})
+```
+
+| Option key | Default | Description |
+|---|---|---|
+| `adbc.gizmosql.auth_type` | `password` | `password` or `external` (OAuth/SSO) |
+| `adbc.gizmosql.oauth.url` | *(discovered)* | Explicit OAuth base URL; otherwise probed from the connection host (HTTPS, then HTTP) |
+| `adbc.gizmosql.oauth.port` | `31339` | OAuth HTTP port used for discovery |
+| `adbc.gizmosql.oauth.timeout_seconds` | `300` | Max seconds to wait for the user to complete auth |
+| `adbc.gizmosql.oauth.poll_interval_seconds` | `1` | Delay between token polls |
+| `adbc.gizmosql.oauth.open_browser` | `true` | `false` prints the auth URL to stderr instead (headless) |
+| `adbc.gizmosql.oauth.tls_skip_verify` | *(follows Flight SQL setting)* | Skip TLS verification for the OAuth HTTP server |
+
+Go-native callers can also run the flow directly — including fully
+headless with a custom URL handler — via `gizmosql.GetOAuthToken`:
+
+```go
+result, err := gizmosql.GetOAuthToken(ctx, gizmosql.OAuthConfig{
+	Host:           "gizmosql.example.com",
+	AuthURLHandler: func(u string) { fmt.Println("authenticate at:", u) },
+})
+// result.Token → use as password with username "token"
+```
 
 ## Usage (Python)
 

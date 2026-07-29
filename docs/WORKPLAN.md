@@ -71,14 +71,23 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 
 ## Phase 3 — OAuth/SSO
 
-- [ ] Port `_oauth.py` flow to Go stdlib (`net/http`): initiate → browser
-      → poll token endpoint; TLS-skip-verify + HTTP fallback discovery
-- [ ] Driver options: `adbc.gizmosql.auth_type=external`,
-      `adbc.gizmosql.oauth.url/.port/.timeout_seconds/.open_browser`
-- [ ] Headless mode: expose auth URL + poll via options/callback instead
-      of opening a browser
-- [ ] Unit tests with a mock OAuth HTTP server (mirror 1.x
-      `test_oauth_unit.py`)
+- [x] Port `_oauth.py` flow to Go stdlib (`net/http`): initiate → browser
+      → poll token endpoint; TLS-skip-verify + HTTPS→HTTP fallback
+      discovery; context-cancellable (oauth.go, `GetOAuthToken`)
+- [x] Driver options: `adbc.gizmosql.auth_type=external`,
+      `adbc.gizmosql.oauth.url/.port/.timeout_seconds/
+      .poll_interval_seconds/.open_browser/.tls_skip_verify` (OAuth TLS
+      verify defaults to the Flight SQL client's tls_skip_verify);
+      options consumed before delegation so the upstream driver never
+      sees unknown keys; token injected as username="token" Basic Auth
+- [x] Headless mode: `open_browser=false` prints the auth URL to stderr;
+      Go-native callers can set `OAuthConfig.AuthURLHandler` for full
+      control
+- [x] Unit tests with mock OAuth HTTP servers (mirror 1.x
+      `test_oauth_unit.py`): success-after-pending, error/not_found/
+      unexpected status, missing token, timeout, malformed initiate,
+      HTTP discovery fallback, driver-level token injection and option
+      validation
 
 ## Phase 4 — C shared library + release matrix
 
