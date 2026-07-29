@@ -11,6 +11,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.0a1] - 2026-07-29
+
 ### Fixed
 - **Option interfaces restored through the wrappers** (found by running
   the dbt-gizmosql suite against 2.0): the database/connection/statement
