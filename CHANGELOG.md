@@ -50,3 +50,12 @@ Python bindings), succeeding the 1.x pure-Python driver.
   database creation and inject the identity token as Basic Auth
   (username "token"). Unit tests mirror 1.x `test_oauth_unit.py` against
   mock OAuth HTTP servers.
+- C shared library (Phase 4, first slice): `go/pkg/gizmosql` cgo export
+  package (adapted from apache/arrow-adbc's generated flightsql export
+  package, Apache-2.0 headers retained) builds
+  `libadbc_driver_gizmosql.{so,dylib,dll}` via `make -C go lib`,
+  exporting `AdbcDriverInit` (standard entrypoint) plus GizmoSQL-named
+  aliases. `python/smoke_test_dylib.py` verifies the full C-ABI path from
+  Python's stock `adbc_driver_manager` against a live server: gizmosql://
+  URI, immediate DDL/DML, and RETURNING persistence — all served from
+  the Go driver inside the shared library.

@@ -91,8 +91,14 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 
 ## Phase 4 — C shared library + release matrix
 
-- [ ] cgo exports producing `libadbc_driver_gizmosql.{so,dylib,dll}`
-      (modeled on upstream `go/adbc/pkg` templates)
+- [x] cgo exports producing `libadbc_driver_gizmosql.{so,dylib,dll}`
+      (adapted from upstream's generated `go/adbc/pkg/flightsql` export
+      package — prefix renamed to GizmoSQL, pointed at our driver, adbc.h
+      vendored under `go/pkg/include/arrow-adbc/`); `make -C go lib`
+      builds it, and `python/smoke_test_dylib.py` proves the C-ABI path
+      from Python's driver manager (gizmosql:// + DDL/DML immediacy +
+      RETURNING persistence). Exports AdbcDriverInit plus
+      AdbcDriverGizmosqlInit/GizmoSQLDriverInit aliases
 - [ ] Driver manifest so `driver = "gizmosql"` resolves via driver managers
 - [ ] CI build matrix: manylinux amd64/arm64, macOS arm64/x86_64,
       windows amd64; binaries attached to GitHub Releases on tag push
