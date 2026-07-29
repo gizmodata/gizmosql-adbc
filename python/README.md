@@ -313,10 +313,34 @@ password = "{{ env_var(GIZMOSQL_PASSWORD) }}"
 
 ## Usage (Python)
 
-Until 2.0 ships from this repo, use the 1.x driver:
-[`pip install adbc-driver-gizmosql`](https://pypi.org/project/adbc-driver-gizmosql/)
-— see its [README](https://github.com/gizmodata/adbc-driver-gizmosql#readme)
-for full usage (the 2.0 bindings will keep that API byte-compatible).
+The Python bindings ship from this repo as
+[`adbc-driver-gizmosql`](https://pypi.org/project/adbc-driver-gizmosql/)
+(2.x) — the platform wheels bundle the Go driver, and the API is
+byte-compatible with the 1.x driver
+([migration guide](https://github.com/gizmodata/gizmosql-adbc/blob/main/docs/migrating-1x-to-2.md)):
+
+```bash
+pip install adbc-driver-gizmosql
+```
+
+```python
+from adbc_driver_gizmosql import dbapi as gizmosql
+
+with gizmosql.connect("gizmosql://localhost:31337",  # TLS by default
+                      username="gizmosql_user",
+                      password="gizmosql_password",
+                      tls_skip_verify=True,
+                      ) as conn:
+    with conn.cursor() as cur:
+        # DDL/DML executes immediately (no fetch needed), RETURNING works,
+        # and adbc_ingest preserves geometry columns — all driver-side.
+        cur.execute("SELECT n_nationkey, n_name FROM nation LIMIT 5")
+        print(cur.fetch_arrow_table())
+```
+
+OAuth/SSO (`auth_type="external"`), connection profiles (`profile=`),
+bulk ingest (`cursor.adbc_ingest`), and Pandas integration all work
+exactly as in 1.x.
 
 ## License
 
