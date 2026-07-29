@@ -69,6 +69,40 @@ jobs:
           pip install -e ".[test]"
           python -m pytest tests -v -q
 
+  wheel-python-versions:
+    # The py3-none-<platform> wheel is version-independent by design;
+    # this job proves it on every supported CPython.
+    name: wheel on python ${{ matrix.python-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.11", "3.12", "3.13", "3.14"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build shared library and wheel
+        run: |
+          make -C go lib
+          cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
+          pipx run build --wheel python || (pip install build && cd python && python -m build --wheel)
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install wheel and run full test suite
+        working-directory: python
+        run: |
+          python -m pip install dist/*.whl pytest "gizmosql>=1.32.0,<2" cryptography
+          python -c "import adbc_driver_gizmosql as m, sys; print(sys.version, m.__version__)"
+          python -m pytest tests -q
+
   lib-matrix:
     name: lib (${{ matrix.os }}${{ matrix.goarch != '' && format(' {0}', matrix.goarch) || '' }})
     strategy:
