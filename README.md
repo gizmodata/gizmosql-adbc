@@ -5,6 +5,9 @@
 [![gizmosql-adbc-ci](https://github.com/gizmodata/gizmosql-adbc/actions/workflows/ci.yml/badge.svg)](https://github.com/gizmodata/gizmosql-adbc/actions/workflows/ci.yml)
 [![Go Reference](https://pkg.go.dev/badge/github.com/gizmodata/gizmosql-adbc/go.svg)](https://pkg.go.dev/github.com/gizmodata/gizmosql-adbc/go)
 [![Go Version](https://img.shields.io/github/go-mod/go-version/gizmodata/gizmosql-adbc?filename=go%2Fgo.mod)](go/go.mod)
+[![Supported Python Versions](https://img.shields.io/pypi/pyversions/adbc-driver-gizmosql)](https://pypi.org/project/adbc-driver-gizmosql/)
+[![PyPI version](https://badge.fury.io/py/adbc-driver-gizmosql.svg)](https://badge.fury.io/py/adbc-driver-gizmosql)
+[![PyPI Downloads](https://img.shields.io/pepy/dt/adbc-driver-gizmosql.svg)](https://pypi.org/project/adbc-driver-gizmosql/)
 [![License](https://img.shields.io/github/license/gizmodata/gizmosql-adbc)](LICENSE)
 
 Native [ADBC](https://arrow.apache.org/adbc/) driver for
@@ -12,9 +15,10 @@ Native [ADBC](https://arrow.apache.org/adbc/) driver for
 bindings — the successor to
 [`adbc-driver-gizmosql`](https://github.com/gizmodata/adbc-driver-gizmosql) 1.x.
 
-> **Status: pre-alpha / under active development.** The 1.x Python driver
-> remains the supported release until this repo ships
-> `adbc-driver-gizmosql` 2.0.
+> **Status: released.** [`adbc-driver-gizmosql` 2.0](https://pypi.org/project/adbc-driver-gizmosql/)
+> ships from this repo — `pip install adbc-driver-gizmosql` gets the
+> Go-backed driver with the same API as 1.x
+> ([migration guide](docs/migrating-1x-to-2.md)).
 
 ## Why a Go driver?
 
