@@ -113,10 +113,19 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 
 ## Phase 5 — Python bindings (adbc-driver-gizmosql 2.0)
 
-- [ ] `python/` package: same public API as 1.x (`dbapi.connect()`,
-      `get_oauth_token`, `execute_update`), loading the bundled shared
-      library via `adbc-driver-manager`
-- [ ] Port the full 1.x pytest suite; all green against the Go backend
+- [x] `python/` package: same public API as 1.x (`dbapi.connect()`,
+      `get_oauth_token`, `execute_update`, `DatabaseOptions`/
+      `ConnectionOptions` vendored), loading the bundled shared library
+      via `adbc-driver-manager` only (no adbc-driver-flightsql
+      dependency). OAuth stays client-side Python (verbatim `_oauth.py`)
+      so the 1.x UX and public API are identical; DDL/DML + RETURNING
+      routing comes from the Go library, with a thin shim restoring
+      description=None-after-DDL. Version 2.0.0.dev0
+- [x] The 1.x pytest suite against the Go backend: `test_integration.py`
+      (all 34 tests), `test_oauth_unit.py`, `test_sql_routing_unit.py`,
+      and `conftest.py` are **verbatim copies** — all green.
+      `test_connect_unit.py` still needs adaptation (its mocks patch
+      `adbc_driver_flightsql.connect`, a seam 2.0 no longer has)
 - [ ] Per-platform wheels embedding the shared library; sdist story
 - [ ] PyPI trusted publishing from this repo — **requires Philip**: add
       this repo + its publish workflow as a trusted publisher on the

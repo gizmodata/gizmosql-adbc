@@ -1,0 +1,65 @@
+[build-system]
+requires = ["setuptools", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+adbc_driver_gizmosql = ["libadbc_driver_gizmosql.*"]
+
+[project]
+name = "adbc-driver-gizmosql"
+version = "2.0.0.dev0"
+description = "Python ADBC driver for GizmoSQL (native Go driver core) with OAuth/SSO support"
+readme = "README.md"
+license = "Apache-2.0"
+requires-python = ">=3.10"
+authors = [
+    { name = "GizmoData", email = "support@gizmodata.com" },
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Database",
+]
+dependencies = [
+    "adbc-driver-manager>=1.12.0",
+    "pyarrow>=25.0.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/gizmodata/gizmosql-adbc"
+Repository = "https://github.com/gizmodata/gizmosql-adbc"
+Issues = "https://github.com/gizmodata/gizmosql-adbc/issues"
+
+[project.optional-dependencies]
+test = [
+    "pytest",
+    "pytest-cov",
+    "gizmosql>=1.32.0,<2",
+    "cryptography>=49",
+]
+dev = [
+    "ruff",
+    "build",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "integration: marks tests that require a running GizmoSQL server (deselect with '-m \"not integration\"')",
+]

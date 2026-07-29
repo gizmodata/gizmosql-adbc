@@ -66,3 +66,11 @@ Python bindings), succeeding the 1.x pure-Python driver.
   windows amd64 and runs the Python C-ABI smoke test on linux+macos; a
   release workflow packages per-platform tarballs and creates a GitHub
   Release with CHANGELOG-extracted notes on v* tag pushes.
+- Python bindings 2.0.0.dev0 (Phase 5, first slice): `python/` package
+  `adbc-driver-gizmosql` keeps the 1.x public API byte-compatible
+  (`dbapi.connect()` with profiles/OAuth/TLS kwargs, `execute_update`,
+  `get_oauth_token`, vendored `DatabaseOptions`/`ConnectionOptions`)
+  while depending only on `adbc-driver-manager` + `pyarrow` and loading
+  the bundled Go shared library. The 1.x integration suite (34 tests),
+  OAuth unit tests, and SQL-routing unit tests run **verbatim** against
+  the Go backend — all green — and now run in CI on linux and macos.

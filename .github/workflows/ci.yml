@@ -63,6 +63,12 @@ jobs:
           pip install adbc-driver-manager pyarrow
           python python/smoke_test_dylib.py
 
+      - name: Python bindings — verbatim 1.x test suite
+        working-directory: python
+        run: |
+          pip install -e ".[test]"
+          python -m pytest tests -v -q
+
   lib-matrix:
     name: lib (${{ matrix.os }}${{ matrix.goarch != '' && format(' {0}', matrix.goarch) || '' }})
     strategy:
