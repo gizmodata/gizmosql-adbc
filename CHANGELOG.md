@@ -11,6 +11,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.3] - 2026-07-29
+
 ### Fixed
 - README Docker quickstart: added
   `--env DATABASE_FILENAME="data/TPC-H-small.duckdb"` — without it,
