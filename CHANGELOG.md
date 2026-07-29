@@ -28,3 +28,15 @@ Python bindings), succeeding the 1.x pure-Python driver.
   parity against a real server.
 - GitHub Actions CI (`ci.yml`): gofmt / go vet / unit tests / live-server
   integration tests on ubuntu and macos.
+- DDL/DML auto-detection and immediate execution (Phase 2): the statement
+  wrapper classifies plain SQL by first keyword (comments stripped,
+  string-literal-aware `RETURNING` carve-out — ported verbatim from the
+  1.x Python driver) and routes DDL/DML issued via `ExecuteQuery` through
+  `ExecuteUpdate` (DoPut) so it executes immediately despite GizmoSQL's
+  lazy planning; `INSERT/UPDATE/DELETE ... RETURNING` takes the query
+  path with eager materialization so the DML fires even if the caller
+  never reads the result. `GetInfo` is mutex-serialized on the connection
+  (apache/arrow-adbc#1178 parity). Unit tests mirror
+  `test_sql_routing_unit.py`; live-server tests cover
+  execute-without-fetch, RETURNING persistence and row delivery, and
+  streaming SELECTs.

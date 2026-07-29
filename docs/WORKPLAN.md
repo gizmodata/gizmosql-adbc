@@ -55,15 +55,19 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 
 ## Phase 2 — DDL/DML + RETURNING routing
 
-- [ ] Port `_is_ddl_dml` semantics: keyword set, block/line comment
+- [x] Port `_is_ddl_dml` semantics: keyword set, block/line comment
       stripping, string-literal-aware `RETURNING` detection — as Go table
-      tests mirroring 1.x `test_sql_routing_unit.py` cases
-- [ ] Statement wrapper: `ExecuteQuery` on DDL/DML → `ExecuteUpdate`
-      (DoPut) under the hood; empty schema result semantics
-- [ ] `RETURNING` → query path with **eager materialization** (DML fires
-      even if the caller never reads the stream); port the 1.x
-      `TestReturningClause` integration tests
-- [ ] Thread-safe GetInfo caching (1.x `adbc_get_info` fix parity)
+      tests mirroring 1.x `test_sql_routing_unit.py` cases (sqlrouting.go)
+- [x] Statement wrapper: `ExecuteQuery` on DDL/DML → `ExecuteUpdate`
+      (DoPut) under the hood; empty-schema result + affected count
+      (plain SQL only — Bind/SetSubstraitPlan disable routing, matching
+      1.x `parameters is None` semantics)
+- [x] `RETURNING` → query path with **eager materialization** (DML fires
+      even if the caller never reads the stream); live-server tests for
+      persist-without-fetch, returned rows, and string-literal
+      'returning' non-misroute
+- [x] Thread-safe GetInfo (mutex-serialized on the connection wrapper —
+      guards apache/arrow-adbc#1178 concurrent-map crash; 1.x parity)
 
 ## Phase 3 — OAuth/SSO
 

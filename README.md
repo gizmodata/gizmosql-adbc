@@ -163,15 +163,29 @@ With the `otlp` exporter, the standard `OTEL_EXPORTER_OTLP_*` environment
 variables configure the collector endpoint. Structured driver logging is
 enabled via `ADBC_DRIVER_FLIGHTSQL_LOG_LEVEL` (`debug`/`info`/`warn`/`error`).
 
-### DDL/DML — auto-detected and executed immediately *(coming in Phase 2)*
+### DDL/DML — auto-detected and executed immediately
 
 GizmoSQL plans queries lazily: the Flight SQL `GetFlightInfo` RPC only
 *plans*, so DDL/DML submitted through the normal query path never executes
-unless the result is fetched. This driver will detect DDL/DML statements and
-route them through `ExecuteUpdate` (DoPut) for immediate server-side
-execution — with `INSERT/UPDATE/DELETE ... RETURNING` eagerly materialized
-on the query path — matching the behavior of the 1.x Python driver and the
-GizmoSQL JDBC/ODBC drivers.
+unless the result is fetched. This driver detects DDL/DML statements
+(first keyword, comments stripped) and routes them through `ExecuteUpdate`
+(DoPut) for immediate server-side execution — no fetch required.
+`INSERT/UPDATE/DELETE ... RETURNING` takes the query path with the result
+**eagerly materialized**, so the DML fires even if you never read the
+returned reader — matching the 1.x Python driver and the GizmoSQL
+JDBC/ODBC drivers:
+
+```go
+stmt.SetSqlQuery("CREATE TABLE t (id INT)")
+_, _, _ = stmt.ExecuteQuery(ctx) // executes immediately via DoPut
+
+stmt.SetSqlQuery("INSERT INTO t VALUES (1), (2)")
+_, affected, _ := stmt.ExecuteQuery(ctx) // affected == 2, already executed
+```
+
+Routing applies to plain SQL only — statements with bound parameters
+(`Bind`/`BindStream`) or Substrait plans use standard prepared-statement
+semantics.
 
 ### OAuth/SSO authentication *(coming in Phase 3)*
 
