@@ -46,10 +46,33 @@ jobs:
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         shell: bash
         run: |
           go build -tags driverlib -buildmode=c-shared \
             -o "build/libadbc_driver_gizmosql.${{ matrix.ext }}" ./pkg/gizmosql
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Build platform wheel
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          _PYTHON_HOST_PLATFORM: ${{ matrix.goarch == 'amd64' && matrix.ext == 'dylib' && 'macosx-11.0-x86_64' || '' }}
+        shell: bash
+        run: |
+          cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
+          pip install build
+          cd python && python -m build --wheel
+
+      - name: Repair wheel to manylinux
+        if: runner.os == 'Linux'
+        run: |
+          pip install auditwheel patchelf
+          auditwheel repair python/dist/*.whl -w python/dist-repaired
+          rm python/dist/*.whl
+          mv python/dist-repaired/*.whl python/dist/
 
       - name: Package artifact
         shell: bash
@@ -60,11 +83,14 @@ jobs:
           cp go/build/libadbc_driver_gizmosql.${{ matrix.ext }} "dist/$PKG/"
           cp packaging/gizmosql.toml.in LICENSE "dist/$PKG/"
           cd dist && tar czf "$PKG.tar.gz" "$PKG"
+          cp ../python/dist/*.whl .
 
       - uses: actions/upload-artifact@v7
         with:
           name: dist-${{ matrix.platform }}
-          path: dist/*.tar.gz
+          path: |
+            dist/*.tar.gz
+            dist/*.whl
 
   release:
     needs: build-libs
@@ -93,4 +119,6 @@ jobs:
       - uses: softprops/action-gh-release@v3
         with:
           body_path: release-notes.md
-          files: dist/*.tar.gz
+          files: |
+            dist/*.tar.gz
+            dist/*.whl

@@ -14,7 +14,7 @@ endif
 
 LIB = build/libadbc_driver_gizmosql.$(SUFFIX)
 
-.PHONY: all lib test clean
+.PHONY: all lib test clean wheel
 
 all: lib
 
@@ -26,5 +26,11 @@ $(LIB): $(wildcard gizmosql/*.go pkg/gizmosql/* pkg/include/arrow-adbc/*)
 test:
 	go test ./...
 
+# Build the platform wheel: shared library first, then bundle it inside
+# the Python package.
+wheel: $(LIB)
+	cp $(LIB) ../python/src/adbc_driver_gizmosql/
+	cd ../python && python -m build --wheel
+
 clean:
-	rm -rf build
+	rm -rf build ../python/src/adbc_driver_gizmosql/libadbc_driver_gizmosql.* ../python/dist

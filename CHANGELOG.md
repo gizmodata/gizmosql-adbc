@@ -77,3 +77,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
   `test_connect_unit.py` is adapted to the 2.0 seams (databases built
   via `adbc_driver_manager.AdbcDatabase` with the bundled Go driver)
   with the same test intents and the 1.x `TestIsDdlDml` cases verbatim.
+- Platform wheels: `py3-none-<platform>` wheels embedding the shared
+  library (`make -C go wheel`), built in CI for linux amd64/arm64
+  (auditwheel-repaired to manylinux), macOS arm64/amd64
+  (MACOSX_DEPLOYMENT_TARGET 11.0), and windows amd64, and attached to
+  GitHub Releases alongside the standalone library tarballs.

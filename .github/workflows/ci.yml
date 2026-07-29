@@ -95,6 +95,7 @@ jobs:
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
         shell: bash
         run: |
           case "$(go env GOOS)" in
@@ -106,7 +107,33 @@ jobs:
             -o "build/libadbc_driver_gizmosql.$EXT" ./pkg/gizmosql
           ls -la build/
 
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Build platform wheel
+        env:
+          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          _PYTHON_HOST_PLATFORM: ${{ matrix.goarch == 'amd64' && 'macosx-11.0-x86_64' || '' }}
+        shell: bash
+        run: |
+          cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
+          pip install build
+          cd python && python -m build --wheel
+          ls -la dist/
+
+      - name: Repair wheel to manylinux
+        if: runner.os == 'Linux'
+        run: |
+          pip install auditwheel patchelf
+          auditwheel repair python/dist/*.whl -w python/dist-repaired
+          rm python/dist/*.whl
+          mv python/dist-repaired/*.whl python/dist/
+          ls -la python/dist/
+
       - uses: actions/upload-artifact@v7
         with:
           name: libadbc_driver_gizmosql-${{ matrix.os }}${{ matrix.goarch != '' && format('-{0}', matrix.goarch) || '' }}
-          path: go/build/libadbc_driver_gizmosql.*
+          path: |
+            go/build/libadbc_driver_gizmosql.*
+            python/dist/*.whl

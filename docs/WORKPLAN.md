@@ -130,7 +130,15 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
       became pass-through assertions with the rewrite covered in Go, and
       the 1.x `TestIsDdlDml` class carried over verbatim) — 58 tests
       green
-- [ ] Per-platform wheels embedding the shared library; sdist story
+- [x] Per-platform wheels embedding the shared library: `py3-none-<plat>`
+      tagging via setup.py bdist_wheel override (upstream ADBC scheme),
+      `make -C go wheel` locally; CI builds wheels on all five platforms
+      (MACOSX_DEPLOYMENT_TARGET=11.0, auditwheel manylinux repair on
+      linux) and the release workflow attaches them to GitHub Releases.
+      Verified: clean-venv wheel install runs the verbatim 34-test
+      integration suite green from the packaged library. (sdist
+      deliberately skipped — a source build would require the Go
+      toolchain; revisit if requested)
 - [ ] PyPI trusted publishing from this repo — **requires Philip**: add
       this repo + its publish workflow as a trusted publisher on the
       existing `adbc-driver-gizmosql` PyPI project (publishers are bound
