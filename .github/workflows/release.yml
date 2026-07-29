@@ -59,9 +59,13 @@ jobs:
       - name: Build platform wheel
         env:
           MACOSX_DEPLOYMENT_TARGET: "11.0"
-          _PYTHON_HOST_PLATFORM: ${{ matrix.goarch == 'amd64' && matrix.ext == 'dylib' && 'macosx-11.0-x86_64' || '' }}
         shell: bash
         run: |
+          # An empty _PYTHON_HOST_PLATFORM blanks the wheel platform tag,
+          # so only export it on the macOS amd64 cross leg.
+          if [ "${{ matrix.goarch }}" = "amd64" ] && [ "$RUNNER_OS" = "macOS" ]; then
+            export _PYTHON_HOST_PLATFORM="macosx-11.0-x86_64"
+          fi
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
           pip install build
           cd python && python -m build --wheel
