@@ -163,6 +163,14 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
       GitHub-archive `gizmodata/adbc-driver-gizmosql` (read-only, history
       and links preserved)
 
+## Downstream compatibility campaign (2026-07-29)
+
+- [x] All eight dependent gizmodata repos' test suites pass on the 2.0
+      wheel (~1,933 tests) — see `docs/downstream-compat.md`. Two real
+      regressions found and fixed (option-interface delegation; silent
+      data loss after ingest), pyarrow floor relaxed for resolver
+      compatibility.
+
 ## Blockers / notes
 
 - The Database/Connection/Statement wrappers embed the upstream
