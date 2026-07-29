@@ -33,6 +33,9 @@ jobs:
           - os: windows-latest
             platform: windows_amd64
             ext: dll
+          - os: windows-11-arm
+            platform: windows_arm64
+            ext: dll
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7

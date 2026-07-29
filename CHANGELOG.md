@@ -11,6 +11,11 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Added
+- Windows arm64 builds: the shared library and platform wheel are now
+  built on GitHub's native `windows-11-arm` runners in CI and attached
+  to releases (manifest template gains a `windows_arm64` entry).
+
 ## [2.0.0] - 2026-07-29
 
 ### Fixed
