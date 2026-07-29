@@ -45,9 +45,13 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
 - [x] `gizmosql://` URI option handling: rewrite to `flightsql://`
       (TLS default, `?transport=tcp`), unit tests (recording-fake
       downstream assertions + real-driver option validation)
-- [ ] Go integration harness: spin up GizmoSQL server (subprocess or
-      Docker) with self-signed TLS; smoke test `SELECT 1`
-- [ ] GitHub Actions CI: gofmt/vet/build/test on linux + macos
+- [x] Go integration harness: launches the cached `gizmosql_server`
+      binary (GIZMOSQL_SERVER_BIN / PATH / pip-cache discovery) with a
+      Go-minted self-signed TLS cert; `SELECT 1` over `gizmosql://` and
+      legacy-scheme parity; skipped under `-short` or when no binary
+- [x] GitHub Actions CI: gofmt/vet/unit (`-short`) + live-server
+      integration tests on ubuntu + macos (server fetched via
+      `pip install gizmosql` + `ensure_binary`)
 
 ## Phase 2 — DDL/DML + RETURNING routing
 

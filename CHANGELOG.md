@@ -22,3 +22,9 @@ Python bindings), succeeding the 1.x pure-Python driver.
   `flightsql://`. Unit tests cover the URI rewrite, option-map
   non-mutation, downstream delegation (via a recording fake), and
   real-driver option validation.
+- Go live-server integration tests: a harness that discovers or reuses a
+  `gizmosql_server` binary, mints a self-signed TLS certificate in Go,
+  and verifies `SELECT 1` over `gizmosql://` plus legacy `grpc+tls://`
+  parity against a real server.
+- GitHub Actions CI (`ci.yml`): gofmt / go vet / unit tests / live-server
+  integration tests on ubuntu and macos.

@@ -1,0 +1,56 @@
+name: gizmosql-adbc-ci
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "CHANGELOG.md"
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  go:
+    name: go (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: gofmt
+        working-directory: go
+        run: test -z "$(gofmt -l .)" || (gofmt -l . && exit 1)
+
+      - name: go vet
+        working-directory: go
+        run: go vet ./...
+
+      - name: Unit tests
+        working-directory: go
+        run: go test -short ./...
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.13"
+
+      - name: Fetch GizmoSQL server binary
+        run: |
+          pip install gizmosql
+          python - <<'EOF'
+          from gizmosql._install import ensure_binary, server_release_tag
+          from gizmosql._version import __version__
+          path = ensure_binary(version=server_release_tag(__version__), channel="stable")
+          print(f"server binary: {path}")
+          EOF
+
+      - name: Integration tests
+        working-directory: go
+        run: go test -v -run Integration ./...
