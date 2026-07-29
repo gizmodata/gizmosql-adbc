@@ -36,15 +36,20 @@ python/   Python bindings — ships libadbc_driver_gizmosql in its wheels,
 docs/     Design plan and work plan
 ```
 
-## Features (planned / ported from 1.x)
+## Features
 
 - `gizmosql://` URI scheme — TLS by default, `?transport=tcp` for plaintext
-- DDL/DML auto-detection → immediate server-side execution (DoPut), with
-  `INSERT/UPDATE/DELETE ... RETURNING` eagerly materialized on the query path
+- DDL/DML auto-detection → immediate server-side execution (DoPut) under
+  GizmoSQL's lazy-execution model, with `INSERT/UPDATE/DELETE ... RETURNING`
+  eagerly materialized on the query path
 - OAuth/SSO code-exchange flow (`/oauth/initiate` → browser →
-  `/oauth/token/{uuid}`), including a headless mode
+  `/oauth/token/{uuid}`), including a headless mode — from any language via
+  `adbc.gizmosql.*` options
 - Everything the upstream Flight SQL driver provides: TLS, cookies,
   timeouts, connection profiles, OpenTelemetry tracing and logging
+- Python bindings keeping the 1.x `adbc-driver-gizmosql` API
+  byte-compatible — the verbatim 1.x test suite is this repo's release
+  gate ([migration guide](docs/migrating-1x-to-2.md))
 
 See [docs/plan.md](docs/plan.md) for the design and
 [docs/WORKPLAN.md](docs/WORKPLAN.md) for build-out progress.
@@ -249,10 +254,53 @@ with dbapi.connect(driver="gizmosql", db_kwargs={
     ...
 ```
 
-The same `driver = "gizmosql"` reference works from C/C++, R, C#, Rust,
-and in [connection profiles](https://arrow.apache.org/adbc/current/format/connection_profiles.html)
-— with DDL/DML immediacy, `RETURNING` handling, `gizmosql://` URIs, and
-OAuth all provided by the shared library.
+The same `driver = "gizmosql"` reference works everywhere the ADBC
+driver manager does — with DDL/DML immediacy, `RETURNING` handling,
+`gizmosql://` URIs, and OAuth all provided by the shared library.
+Verified against the [Columnar ADBC QuickStarts](https://github.com/columnar-tech/adbc-quickstarts)
+gizmosql examples (see [docs/quickstarts-conformance.md](docs/quickstarts-conformance.md)):
+
+```go
+// Go via the C driver manager (github.com/apache/arrow-adbc/go/adbc/drivermgr)
+var drv drivermgr.Driver
+db, err := drv.NewDatabase(map[string]string{
+    "driver":   "gizmosql",
+    "uri":      "gizmosql://localhost:31337",
+    "username": "gizmosql_user",
+    "password": "gizmosql_password",
+})
+```
+
+```r
+# R
+library(adbcdrivermanager)
+db <- adbc_database_init(
+  adbc_driver("gizmosql"),
+  uri = "gizmosql://localhost:31337",
+  username = "gizmosql_user",
+  password = "gizmosql_password"
+)
+```
+
+```cpp
+// C/C++ (adbc_driver_manager.h)
+AdbcDatabaseSetOption(&database, "driver", "gizmosql", &error);
+AdbcDatabaseSetOption(&database, "uri", "gizmosql://localhost:31337", &error);
+```
+
+Or reference it from a
+[connection profile](https://arrow.apache.org/adbc/current/format/connection_profiles.html)
+usable in every language:
+
+```toml
+profile_version = 1
+
+[Options]
+driver = "gizmosql"
+uri = "gizmosql://gizmosql.example.com:31337"
+username = "gizmosql_user"
+password = "{{ env_var(GIZMOSQL_PASSWORD) }}"
+```
 
 ## Usage (Python)
 

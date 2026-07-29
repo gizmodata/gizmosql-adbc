@@ -154,9 +154,10 @@ off, committed, and pushed with green tests. See `docs/plan.md` for design.
       their toolchains; status table in
       `docs/quickstarts-conformance.md`
 - [x] Migration guide 1.x → 2.0 (`docs/migrating-1x-to-2.md`)
-- [ ] R / C# / Rust / JS usage docs via driver manager + manifest
-      (README has the by-name manifest section; per-language snippets
-      pending)
+- [x] Per-language usage docs: README now shows Go-via-drivermgr, R,
+      C/C++, and connection-profile snippets under the manifest section
+      (all resolve `driver = "gizmosql"`); further languages follow the
+      same pattern
 - [ ] Sunset the 1.x repo (after a post-2.0 maintenance window, decided
       by Philip): pointer README, close/redirect open issues, then
       GitHub-archive `gizmodata/adbc-driver-gizmosql` (read-only, history
