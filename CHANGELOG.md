@@ -11,6 +11,14 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Fixed
+- README Docker quickstart: added
+  `--env DATABASE_FILENAME="data/TPC-H-small.duckdb"` — without it,
+  recent `gizmodata/gizmosql` images open an in-memory database and the
+  `nation` queries in the examples fail. Every example in the PyPI
+  README was run end-to-end against the published 2.0.2 wheels as part
+  of this fix.
+
 ## [2.0.2] - 2026-07-29
 
 ### Changed

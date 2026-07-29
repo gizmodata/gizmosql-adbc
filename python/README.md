@@ -51,8 +51,8 @@ the [repository](https://github.com/gizmodata/gizmosql-adbc).
 
 ### Start a GizmoSQL server
 
-First — start a GizmoSQL server in Docker (mounts a small TPC-H database
-by default):
+First — start a GizmoSQL server in Docker, serving the small TPC-H
+sample database bundled in the image:
 
 ```bash
 docker run --name gizmosql \
@@ -64,6 +64,7 @@ docker run --name gizmosql \
            --env TLS_ENABLED="1" \
            --env GIZMOSQL_USERNAME="gizmosql_user" \
            --env GIZMOSQL_PASSWORD="gizmosql_password" \
+           --env DATABASE_FILENAME="data/TPC-H-small.duckdb" \
            --env PRINT_QUERIES="1" \
            --pull missing \
            gizmodata/gizmosql:latest
