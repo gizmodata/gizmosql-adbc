@@ -11,6 +11,15 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.4] - 2026-07-29
+
+### Fixed
+- `packaging/gizmosql.toml.in`: the `windows_amd64` and `windows_arm64`
+  shared-library paths pointed at `adbc_driver_gizmosql.dll`, but the
+  release tarballs ship `libadbc_driver_gizmosql.dll` (verified against
+  the v2.0.3 assets for both architectures). Manifest-based driver
+  loading on Windows could not find the DLL as a result.
+
 ## [2.0.3] - 2026-07-29
 
 ### Fixed
