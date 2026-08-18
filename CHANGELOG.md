@@ -11,6 +11,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.5] - 2026-08-18
+
 ### Changed
 - Python dbapi: fetching after a successfully executed DDL/DML statement
   (`cursor.execute("CREATE ...")` then `fetchall()`) now returns an empty

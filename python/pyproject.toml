@@ -10,7 +10,7 @@ adbc_driver_gizmosql = ["libadbc_driver_gizmosql.*"]
 
 [project]
 name = "adbc-driver-gizmosql"
-version = "2.0.4"
+version = "2.0.5"
 description = "Python ADBC driver for GizmoSQL (native Go driver core) with OAuth/SSO support"
 readme = "README.md"
 license = "Apache-2.0"
