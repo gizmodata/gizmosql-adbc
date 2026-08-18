@@ -203,8 +203,7 @@ func initLoggingFromEnv(db adbc.Database) {
 		logLevel = slog.LevelDebug
 	case "info":
 		logLevel = slog.LevelInfo
-	case "warn":
-	case "warning":
+	case "warn", "warning":
 		logLevel = slog.LevelWarn
 	case "error":
 		logLevel = slog.LevelError
@@ -215,11 +214,7 @@ func initLoggingFromEnv(db adbc.Database) {
 		return
 	}
 
-	h := slog.NewJSONHandler(os.Stderr, &slog.HandlerOptions{
-		AddSource: false,
-		Level:     logLevel,
-	})
-	logger := slog.New(h)
+	logger := gizmosql.NewLogger(logLevel)
 
 	ext, ok := db.(adbc.DatabaseLogging)
 	if !ok {

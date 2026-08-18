@@ -16,6 +16,7 @@ package gizmosql
 
 import (
 	"context"
+	"log/slog"
 	"strings"
 	"sync"
 
@@ -71,6 +72,12 @@ func (d *driverImpl) NewDatabaseWithOptionsContext(
 	if err != nil {
 		return nil, err
 	}
+	// Replace the upstream default logger (which reports expected
+	// client-initiated stream cancellations at ERROR) with the filtered
+	// one; see logging.go.
+	if lg, ok := db.(adbc.DatabaseLogging); ok {
+		lg.SetLogger(NewLogger(slog.LevelError))
+	}
 	return &database{Database: db}, nil
 }
 
@@ -82,6 +89,17 @@ type database struct {
 
 func (db *database) SetOptions(opts map[string]string) error {
 	return db.Database.SetOptions(rewriteOptions(opts))
+}
+
+// SetLogger forwards to the upstream database. The wrapper embeds the
+// adbc.Database interface, which does not include SetLogger, so without
+// this explicit forwarder an adbc.DatabaseLogging assertion on the
+// wrapper fails and callers (e.g. the C shared library's log-level env
+// handling) cannot replace the logger.
+func (db *database) SetLogger(logger *slog.Logger) {
+	if lg, ok := db.Database.(adbc.DatabaseLogging); ok {
+		lg.SetLogger(logger)
+	}
 }
 
 func (db *database) Open(ctx context.Context) (adbc.Connection, error) {

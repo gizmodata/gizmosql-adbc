@@ -11,6 +11,29 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.6] - 2026-08-18
+
+### Fixed
+- Client-initiated stream cancellations are no longer logged as errors.
+  When an ADBC consumer closes a `DoGet` stream early — as DuckDB's
+  `adbc_scanner` and Columnar's `adbc` extension both do after probing a
+  result's schema — the upstream Flight SQL driver's default logger
+  emitted a spurious `ERROR "FlightSQL endpoint DoGet failed ... context
+  canceled"` JSON record on stderr. The driver now installs a logger that
+  suppresses expected `context canceled` errors (real errors are still
+  logged).
+- `ADBC_DRIVER_FLIGHTSQL_LOG_LEVEL=warn` now actually selects the WARN
+  level (a switch fall-through bug left it at ERROR; `warning` was
+  unaffected).
+- The driver's database wrapper now forwards `SetLogger`, so the
+  log-level environment variable handling in the C shared library (and
+  any `adbc.DatabaseLogging` caller) works again instead of silently
+  doing nothing.
+
+### Changed
+- Bumped `google.golang.org/grpc` to 1.83.0. (Other direct dependencies —
+  `arrow-adbc` 1.12.0, `arrow-go` 18.7.0 — are already current.)
+
 ## [2.0.5] - 2026-08-18
 
 ### Changed
