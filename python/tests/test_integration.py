@@ -109,6 +109,38 @@ class TestExecuteAutoDetect:
                 cur.execute_update("DROP TABLE IF EXISTS test_desc_ddl")
             raise
 
+    def test_fetch_after_ddl_returns_empty(self, conn):
+        """Fetching after a DDL/DML execute() returns an empty result
+        (None/[]) instead of raising, matching sqlite3/duckdb — generic
+        DB-API consumers (e.g. sqlframe) fetch unconditionally after
+        execute() and only then inspect description."""
+        with conn.cursor() as cur:
+            cur.execute("CREATE TABLE test_fetch_after_ddl (id INT)")
+            assert cur.fetchall() == []
+            assert cur.fetchone() is None
+            assert cur.fetchmany(10) == []
+        try:
+            with conn.cursor() as cur:
+                cur.execute("INSERT INTO test_fetch_after_ddl VALUES (1)")
+                assert cur.fetchall() == []
+                cur.execute_update("DELETE FROM test_fetch_after_ddl")
+                assert cur.fetchall() == []
+                # A subsequent real query on the same cursor still works.
+                cur.execute("SELECT 42 AS answer")
+                assert cur.fetchall() == [(42,)]
+        finally:
+            with conn.cursor() as cur:
+                cur.execute_update("DROP TABLE IF EXISTS test_fetch_after_ddl")
+
+    def test_fetch_before_execute_still_raises(self, conn):
+        """DB-API strictness is preserved for a cursor that never executed."""
+        import pytest
+        from adbc_driver_manager import ProgrammingError
+
+        with conn.cursor() as cur:
+            with pytest.raises(ProgrammingError):
+                cur.fetchall()
+
     def test_description_present_after_select(self, conn):
         """execute() returns column descriptions for SELECT."""
         with conn.cursor() as cur:

@@ -134,25 +134,35 @@ class Cursor(_BaseCursor):
 
     DDL/DML auto-detection and ``RETURNING`` eager materialization happen
     inside the Go driver; this class only restores two 1.x DBAPI
-    niceties: ``description`` is ``None`` after a DDL/DML statement (the
+    niceties — ``description`` is ``None`` after a DDL/DML statement (the
     driver reports an empty schema, which this shim collapses to "no
     result set"), and ``execute_update()`` returns the affected-row
-    count directly.
+    count directly — and relaxes one: fetching after a successfully
+    executed DDL/DML statement returns an empty result (``None``/``[]``)
+    instead of raising, matching ``sqlite3``/``duckdb``. Generic DB-API
+    consumers (e.g. sqlframe) call ``fetchall()`` unconditionally after
+    ``execute()`` and only then inspect ``description``; strict raising
+    breaks them. Fetching before any ``execute()`` still raises.
     """
+
+    # True after an execute that produced no result set (DDL/DML);
+    # class-level default covers cursors that have never executed.
+    _executed_without_result_set = False
 
     def execute(self, operation, parameters=None):
         """Execute a query; DDL/DML executes immediately on the server.
 
         Returns this cursor (to enable method chaining).
         """
+        self._executed_without_result_set = False
         super().execute(operation, parameters)
         # The Go driver signals "statement executed, no result set" with
-        # an empty schema. Collapse it so description is None and
-        # fetching raises, exactly as in 1.x. (Reading .description does
-        # not consume the stream.)
+        # an empty schema. Collapse it so description is None, as in 1.x.
+        # (Reading .description does not consume the stream.)
         if self._results is not None and len(self._results.description) == 0:
             self._results.close()
             self._results = None
+            self._executed_without_result_set = True
         return self
 
     def execute_update(self, query: str) -> int:
@@ -162,7 +172,28 @@ class Cursor(_BaseCursor):
         self._rowcount = rowcount
         self._results = None
         self._last_query = query
+        self._executed_without_result_set = True
         return rowcount
+
+    def fetchone(self):
+        """Fetch one row, or ``None`` after a statement with no result set."""
+        if self._results is None and self._executed_without_result_set:
+            return None
+        return super().fetchone()
+
+    def fetchmany(self, size=None):
+        """Fetch some rows, or ``[]`` after a statement with no result set."""
+        if self._results is None and self._executed_without_result_set:
+            return []
+        if size is not None:
+            return super().fetchmany(size)
+        return super().fetchmany()
+
+    def fetchall(self):
+        """Fetch all rows, or ``[]`` after a statement with no result set."""
+        if self._results is None and self._executed_without_result_set:
+            return []
+        return super().fetchall()
 
 
 class Connection(_BaseConnection):

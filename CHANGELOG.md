@@ -11,6 +11,17 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Changed
+- Python dbapi: fetching after a successfully executed DDL/DML statement
+  (`cursor.execute("CREATE ...")` then `fetchall()`) now returns an empty
+  result (`None`/`[]`) instead of raising
+  `ProgrammingError: Cannot fetchall() before execute()`, matching
+  `sqlite3`/`duckdb` semantics. Generic DB-API consumers (e.g. sqlframe)
+  fetch unconditionally after `execute()` and only then inspect
+  `cursor.description`; the strict raising broke server-side
+  `spark.read.*` schema inference in sqlframe-gizmosql. Fetching on a
+  cursor that never executed still raises.
+
 ## [2.0.4] - 2026-07-29
 
 ### Fixed
