@@ -11,6 +11,18 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.7] - 2026-08-24
+
+### Changed
+- Bumped Go dependencies: `google.golang.org/grpc` 1.83.0 -> 1.83.1,
+  `google.golang.org/protobuf` 1.36.11 -> 1.36.12, OpenTelemetry 1.44.0 ->
+  1.45.0, `golang.org/x/*` and `genproto` to current, plus other indirect
+  modules. Flight SQL (`arrow-adbc/go/adbc` v1.12.0, `arrow-go` v18.7.0)
+  was already at the latest release.
+- Raised the Go toolchain to 1.26.7 (`go` directive in `go.mod`, which CI
+  reads via `go-version-file`) so driver binaries pick up the Go CVE fixes
+  shipped in 1.26.6+ — matching the upstream ADBC Flight SQL 1.12.1 rebuild.
+
 ## [2.0.6] - 2026-08-18
 
 ### Fixed
