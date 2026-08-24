@@ -11,6 +11,7 @@ import (
 
 	"github.com/apache/arrow-adbc/go/adbc"
 	"github.com/apache/arrow-go/v18/arrow"
+	"github.com/apache/arrow-go/v18/arrow/array"
 )
 
 // Geometry-aware bulk ingest (gizmodata/adbc-driver-gizmosql#5).
@@ -117,8 +118,18 @@ func (s *statement) executeGeoIngest(ctx context.Context, geoCols []string) (int
 		_ = execSQL(ctx, s.cnxn, "DROP TABLE IF EXISTS "+quoteIdent(interim))
 	}
 
-	// Restore the geometry type on the interim table.
-	for _, col := range geoCols {
+	// Restore the geometry type on the interim table — but only for columns
+	// that actually landed as BLOB. GizmoSQL >= 1.37.0 honours the geoarrow.*
+	// extension metadata itself and creates GEOMETRY columns directly, in
+	// which case ST_GeomFromWKB(GEOMETRY) would not bind; older servers
+	// ignore the metadata and leave BLOB. Checking the resulting type keeps
+	// this path correct against both without sniffing server versions.
+	blobCols, err := blobTypedColumns(ctx, s.cnxn, interim, geoCols)
+	if err != nil {
+		dropInterim()
+		return -1, wrapGeoErr("inspecting interim column types", err)
+	}
+	for _, col := range blobCols {
 		q := fmt.Sprintf("ALTER TABLE %s ALTER COLUMN %s TYPE GEOMETRY USING ST_GeomFromWKB(%s)",
 			quoteIdent(interim), quoteIdent(col), quoteIdent(col))
 		if err := execSQL(ctx, s.cnxn, q); err != nil {
@@ -160,6 +171,50 @@ func (s *statement) executeGeoIngest(ctx context.Context, geoCols []string) (int
 	}
 	dropInterim()
 	return affected, nil
+}
+
+// blobTypedColumns returns the subset of `cols` whose type on `table` is
+// BLOB, i.e. geo columns the server did not already materialize as GEOMETRY.
+func blobTypedColumns(ctx context.Context, cnxn adbc.Connection, table string, cols []string) ([]string, error) {
+	st, err := cnxn.NewStatement()
+	if err != nil {
+		return nil, err
+	}
+	defer st.Close()
+	q := fmt.Sprintf(
+		"SELECT column_name FROM duckdb_columns() WHERE table_name = %s AND upper(data_type) = 'BLOB'",
+		quoteLiteral(table))
+	if err := st.SetSqlQuery(q); err != nil {
+		return nil, err
+	}
+	reader, _, err := st.ExecuteQuery(ctx)
+	if err != nil {
+		return nil, err
+	}
+	defer reader.Release()
+	want := make(map[string]bool, len(cols))
+	for _, c := range cols {
+		want[c] = true
+	}
+	var out []string
+	for reader.Next() {
+		rec := reader.Record()
+		names, ok := rec.Column(0).(*array.String)
+		if !ok {
+			return nil, fmt.Errorf("unexpected column_name type %s", rec.Column(0).DataType())
+		}
+		for i := 0; i < names.Len(); i++ {
+			if n := names.Value(i); want[n] {
+				out = append(out, n)
+			}
+		}
+	}
+	return out, reader.Err()
+}
+
+// quoteLiteral renders s as a single-quoted SQL string literal.
+func quoteLiteral(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 func wrapGeoErr(stage string, err error) error {

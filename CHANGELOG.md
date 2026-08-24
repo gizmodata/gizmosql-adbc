@@ -11,6 +11,21 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.8] - 2026-08-24
+
+### Fixed
+- **Geometry-aware ingest works against GizmoSQL ≥ 1.37.0.** GizmoSQL 1.37.0
+  honours `geoarrow.*` extension metadata server-side and creates `GEOMETRY`
+  columns directly during bulk ingest. The driver's 2.0.1 interim-table path
+  then failed in every ingest mode with
+  `Binder Error: No function matches 'st_geomfromwkb(GEOMETRY)'`, because it
+  unconditionally re-typed the interim columns with `ST_GeomFromWKB`. The
+  driver now inspects the interim table's column types and only converts
+  columns that actually landed as `BLOB` (older servers), so the same code
+  path works against both old and new servers without version sniffing.
+  Users on GizmoSQL ≥ 1.37.0 must upgrade to this driver release for
+  geometry ingest; non-geometry ingest was never affected.
+
 ## [2.0.7] - 2026-08-24
 
 ### Changed
