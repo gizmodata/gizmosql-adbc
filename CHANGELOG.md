@@ -11,6 +11,37 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.9] - 2026-08-27
+
+### Added
+- **Server-side query cancellation.** The driver now sends the Flight
+  `CancelFlightInfo` action to GizmoSQL — the same call the gizmosql-jdbc
+  driver makes — so an abandoned query is interrupted on the server instead
+  of running to completion (or until the server's `--query-timeout`).
+  Previously "cancel" only tore down the local gRPC stream, which the server
+  ignored. Cancellation now happens on:
+  - `AdbcStatementCancel` / `AdbcConnectionCancel` — which the Python
+    `adbc_driver_manager` invokes from its SIGINT handler, so **Ctrl+C or a
+    Jupyter kernel interrupt during a long query now cancels it**, as does an
+    explicit `cursor.adbc_cancel()`.
+  - Closing a statement, or releasing a result stream, before it is drained
+    (`cursor.close()`, `del cursor`, connection close, normal interpreter
+    shutdown) while the query is still executing.
+  - Go: connections and statements implement `gizmosql.QueryCanceler`
+    (`CancelQuery(ctx)`), safe to call from another goroutine while
+    `ExecuteQuery`/`ExecuteUpdate` is blocked.
+  The cancel is issued over the session's existing gRPC connection (so TLS,
+  mTLS and auth settings need no re-derivation) and is best-effort: a query
+  that already finished is a harmless no-op. A hard kill of the client
+  process (`kill -9`, OOM) still cannot notify the server; that case needs a
+  server-side fix (tracked in the gizmosql repo).
+
+### Changed
+- The driver's log filter now also suppresses the ERROR-level "endpoint
+  stream ended with error ... INTERRUPT Error: Interrupted!" line that
+  upstream emits when a cancelled query's stream ends; the interrupt still
+  surfaces to the caller as the statement's error.
+
 ## [2.0.8] - 2026-08-24
 
 ### Fixed

@@ -68,6 +68,9 @@ func (d *driverImpl) NewDatabaseWithOptionsContext(
 	if err != nil {
 		return nil, err
 	}
+	// Interceptors that let the wrapper observe the per-session gRPC
+	// connection, over which server-side cancels are issued; see cancel.go.
+	dialOpts = append(append([]grpc.DialOption{}, dialOpts...), captureDialOptions()...)
 	db, err := d.inner.NewDatabaseWithOptionsContext(ctx, resolved, dialOpts...)
 	if err != nil {
 		return nil, err
@@ -103,11 +106,15 @@ func (db *database) SetLogger(logger *slog.Logger) {
 }
 
 func (db *database) Open(ctx context.Context) (adbc.Connection, error) {
-	conn, err := db.Database.Open(ctx)
+	// Upstream authenticates and issues its first RPCs during Open; the
+	// canceler rides along in the context so the interceptors installed by
+	// captureDialOptions can record the session's connection.
+	sc := &sessionCanceler{}
+	conn, err := db.Database.Open(withSessionCanceler(ctx, sc))
 	if err != nil {
 		return nil, err
 	}
-	return &connection{Connection: conn}, nil
+	return &connection{Connection: conn, canceler: sc}, nil
 }
 
 // connection wraps the upstream connection to hand out GizmoSQL
@@ -117,6 +124,7 @@ func (db *database) Open(ctx context.Context) (adbc.Connection, error) {
 type connection struct {
 	adbc.Connection
 	getInfoMu sync.Mutex
+	canceler  *sessionCanceler
 }
 
 func (c *connection) NewStatement() (adbc.Statement, error) {
@@ -124,7 +132,13 @@ func (c *connection) NewStatement() (adbc.Statement, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &statement{Statement: stmt, cnxn: c.Connection}, nil
+	return &statement{Statement: stmt, cnxn: c.Connection, canceler: c.canceler}, nil
+}
+
+// CancelQuery asks the server to interrupt whatever statement this
+// connection's session is currently executing (see cancel.go).
+func (c *connection) CancelQuery(ctx context.Context) error {
+	return c.canceler.cancel(ctx, "")
 }
 
 func (c *connection) GetInfo(ctx context.Context, infoCodes []adbc.InfoCode) (array.RecordReader, error) {
@@ -166,6 +180,44 @@ type statement struct {
 	ingestDBSchema string
 	ingestTemp     bool
 	boundSchema    *arrow.Schema
+	// Server-side cancellation (cancel.go): the session canceler shared
+	// with the parent connection, and the state of the most recent
+	// streaming execution so Close can interrupt an abandoned query.
+	canceler *sessionCanceler
+	current  *execState
+}
+
+// CancelQuery asks the server to interrupt the statement's in-flight
+// query. It may be called concurrently with a blocked ExecuteQuery or
+// ExecuteUpdate; that call then returns the server's interrupt error.
+func (s *statement) CancelQuery(ctx context.Context) error {
+	if s.canceler == nil {
+		return errNoCanceler
+	}
+	if cur := s.current; cur != nil {
+		cur.cancelled.Store(true)
+	}
+	return s.canceler.cancel(ctx, s.query)
+}
+
+// cancelAbandoned best-effort interrupts an execution the caller walked
+// away from before draining it (statement closed, reader released).
+func (s *statement) cancelAbandoned() {
+	if s.canceler == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), implicitCancelTimeout)
+	defer cancel()
+	_ = s.canceler.cancel(ctx, s.query)
+}
+
+// Close interrupts an abandoned in-flight query on the server before
+// closing the inner statement.
+func (s *statement) Close() error {
+	if cur := s.current; cur != nil && cur.abandoned() {
+		s.cancelAbandoned()
+	}
+	return s.Statement.Close()
 }
 
 type statementOption struct {
@@ -303,7 +355,11 @@ func (s *statement) ExecuteUpdate(ctx context.Context) (int64, error) {
 
 func (s *statement) ExecuteQuery(ctx context.Context) (array.RecordReader, int64, error) {
 	if s.query == "" || s.hasBound {
-		return s.Statement.ExecuteQuery(ctx)
+		reader, affected, err := s.Statement.ExecuteQuery(ctx)
+		if err != nil {
+			return nil, -1, err
+		}
+		return s.trackStreaming(reader), affected, nil
 	}
 	if isDDLDML(s.query) {
 		affected, err := s.Statement.ExecuteUpdate(ctx)
@@ -323,7 +379,17 @@ func (s *statement) ExecuteQuery(ctx context.Context) (array.RecordReader, int64
 	if hasReturningClause(stripSQLComments(s.query)) {
 		return materialize(reader, affected)
 	}
-	return reader, affected, nil
+	return s.trackStreaming(reader), affected, nil
+}
+
+// trackStreaming records a new streaming execution and wraps its reader
+// so abandoning it (release before exhaustion) cancels the query on the
+// server. Materialized and synthetic readers are never in flight and are
+// returned unwrapped.
+func (s *statement) trackStreaming(reader array.RecordReader) array.RecordReader {
+	state := &execState{}
+	s.current = state
+	return newCancelReader(reader, state, s.cancelAbandoned)
 }
 
 var emptySchema = arrow.NewSchema([]arrow.Field{}, nil)

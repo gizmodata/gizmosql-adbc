@@ -16,8 +16,15 @@ import (
 // ("FlightSQL endpoint DoGet failed ... context canceled"). Those are
 // expected and not actionable, so the driver's loggers suppress them.
 
+// expectedCancelErrors are substrings of err attributes that stem from a
+// client-initiated cancellation: the local context being cancelled, and
+// the DuckDB interrupt the server reports once CancelFlightInfo lands
+// (cancel.go). The interrupt error still reaches the caller as the
+// statement's result; only the ERROR-level log line is suppressed.
+var expectedCancelErrors = []string{"context canceled", "INTERRUPT Error: Interrupted"}
+
 // cancelFilterHandler wraps a slog.Handler and drops records whose err
-// attribute reports a context cancellation.
+// attribute reports an expected client-initiated cancellation.
 type cancelFilterHandler struct {
 	slog.Handler
 }
@@ -26,9 +33,11 @@ func (h cancelFilterHandler) Handle(ctx context.Context, r slog.Record) error {
 	canceled := false
 	r.Attrs(func(a slog.Attr) bool {
 		if a.Key == "err" || a.Key == "error" {
-			if strings.Contains(a.Value.String(), "context canceled") {
-				canceled = true
-				return false
+			for _, want := range expectedCancelErrors {
+				if strings.Contains(a.Value.String(), want) {
+					canceled = true
+					return false
+				}
 			}
 		}
 		return true

@@ -55,25 +55,40 @@ def _generate_self_signed_tls_cert(out_dir: Path) -> tuple[Path, Path]:
 
 
 @pytest.fixture(scope="session")
-def gizmosql_server(tmp_path_factory):
+def gizmosql_server_log(tmp_path_factory) -> Path:
+    """Path of the file the test server's stdout/stderr are written to, so
+    tests can assert on server-side events (e.g. a statement being
+    interrupted by a client cancel)."""
+    return tmp_path_factory.mktemp("server") / "gizmosql_server.log"
+
+
+@pytest.fixture(scope="session")
+def gizmosql_server(tmp_path_factory, gizmosql_server_log):
     """Start a GizmoSQL server as a managed subprocess via the gizmosql
     PyPI package. Auto-picks a free port and tears the server down on
-    exit; no Docker required."""
+    exit; no Docker required. Server output goes to ``gizmosql_server_log``
+    (run pytest with ``-s`` and ``tail -f`` it to watch)."""
     gizmosql = pytest.importorskip("gizmosql")
 
     tls_dir = tmp_path_factory.mktemp("tls")
     tls_dir.chmod(0o700)
     tls_cert, tls_key = _generate_self_signed_tls_cert(tls_dir)
 
-    with gizmosql.Server(
-        username=GIZMOSQL_USERNAME,
-        password=GIZMOSQL_PASSWORD,
-        extra_args=["--tls", str(tls_cert), str(tls_key)],
-        extra_env={
-            "PRINT_QUERIES": "1",
-            "INIT_SQL_COMMANDS": "CALL dbgen(sf=0.01);",
-        },
-    ) as srv:
+    with (
+        gizmosql_server_log.open("wb") as log,
+        gizmosql.Server(
+            username=GIZMOSQL_USERNAME,
+            password=GIZMOSQL_PASSWORD,
+            # --print-queries logs statement lifecycle events the cancellation
+            # tests assert on.
+            extra_args=["--tls", str(tls_cert), str(tls_key), "--print-queries"],
+            extra_env={
+                "INIT_SQL_COMMANDS": "CALL dbgen(sf=0.01);",
+            },
+            stdout=log,
+            stderr=log,
+        ) as srv,
+    ):
         yield srv
 
 

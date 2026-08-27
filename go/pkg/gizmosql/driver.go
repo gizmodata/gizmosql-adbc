@@ -58,6 +58,7 @@ import (
 	"runtime/cgo"
 	"strings"
 	"sync/atomic"
+	"time"
 	"unsafe"
 
 	"github.com/apache/arrow-adbc/go/adbc"
@@ -1077,8 +1078,26 @@ func GizmoSQLConnectionCancel(cnxn *C.struct_AdbcConnection, err *C.struct_AdbcE
 		return C.ADBC_STATUS_INVALID_STATE
 	}
 
+	// Ask the server to interrupt the session's active statement before
+	// dropping the local RPC context; otherwise the query keeps running
+	// server-side after the client walks away.
+	serverCancel(conn.cnxn)
 	conn.cancelContext()
 	return C.ADBC_STATUS_OK
+}
+
+// serverCancel issues a best-effort server-side cancel through the
+// wrapper's QueryCanceler (see gizmosql/cancel.go). Errors are ignored:
+// the query may already have finished, and the local context is
+// cancelled regardless.
+func serverCancel(v any) {
+	qc, ok := v.(gizmosql.QueryCanceler)
+	if !ok {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_ = qc.CancelQuery(ctx)
 }
 
 func toStrPtr(in *C.cchar_t) *string {
@@ -1506,6 +1525,9 @@ func GizmoSQLStatementCancel(stmt *C.struct_AdbcStatement, err *C.struct_AdbcErr
 		return C.ADBC_STATUS_INVALID_STATE
 	}
 
+	// Server-side interrupt first (this is what the Python driver
+	// manager's SIGINT handler reaches), then the local context.
+	serverCancel(st.stmt)
 	st.cancelContext()
 	return C.ADBC_STATUS_OK
 }

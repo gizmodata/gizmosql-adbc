@@ -50,6 +50,9 @@ docs/     Design docs, migration guide, conformance results
 - OAuth/SSO code-exchange flow (`/oauth/initiate` → browser →
   `/oauth/token/{uuid}`), including a headless mode — from any language via
   `adbc.gizmosql.*` options
+- Server-side query cancellation — abandoning a running query (Ctrl+C,
+  `cursor.close()`, interpreter shutdown, `AdbcStatementCancel`) sends
+  Flight `CancelFlightInfo` so GizmoSQL interrupts it, like gizmosql-jdbc
 - Everything the upstream Flight SQL driver provides: TLS, cookies,
   timeouts, connection profiles, OpenTelemetry tracing and logging
 - Python bindings keeping the 1.x `adbc-driver-gizmosql` API
@@ -346,6 +349,23 @@ with gizmosql.connect("gizmosql://localhost:31337",  # TLS by default
 OAuth/SSO (`auth_type="external"`), connection profiles (`profile=`),
 bulk ingest (`cursor.adbc_ingest`), and Pandas integration all work
 exactly as in 1.x.
+
+### Query cancellation
+
+A long-running query is cancelled **on the server** (GizmoSQL interrupts
+the DuckDB statement) whenever the client walks away from it:
+
+- Ctrl+C / Jupyter "interrupt kernel" while `execute()` or `fetch*()` is
+  blocked — `adbc_driver_manager`'s SIGINT handler calls
+  `AdbcStatementCancel`, which the driver relays as `CancelFlightInfo`.
+- `cursor.adbc_cancel()` from another thread.
+- `cursor.close()` / `del cursor` / `conn.close()` / interpreter shutdown
+  while the query is still executing.
+
+The client sees an `OperationalError` (the server's `INTERRUPT Error` or a
+local `context canceled`), and the connection remains usable. A hard kill
+of the process (`kill -9`, OOM) cannot notify the server; that query runs
+until it finishes or hits the server's `--query-timeout`.
 
 ## License
 

@@ -52,3 +52,13 @@ func TestCancelFilterSurvivesWithAttrsAndGroup(t *testing.T) {
 		t.Errorf("expected suppression to survive With/WithGroup, got: %s", got)
 	}
 }
+
+func TestCancelFilterSuppressesServerInterrupt(t *testing.T) {
+	var buf bytes.Buffer
+	logger := slog.New(cancelFilterHandler{Handler: slog.NewJSONHandler(&buf, nil)})
+	logger.Error("FlightSQL endpoint stream ended with error",
+		"err", "rpc error: code = Unknown desc = An execution error has occurred: INTERRUPT Error: Interrupted!")
+	if buf.Len() != 0 {
+		t.Fatalf("expected server interrupt after cancel to be suppressed, got: %s", buf.String())
+	}
+}

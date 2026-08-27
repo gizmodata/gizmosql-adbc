@@ -3,6 +3,7 @@
 package gizmosql
 
 import (
+	"bytes"
 	"context"
 	"crypto/ecdsa"
 	"crypto/elliptic"
@@ -11,6 +12,7 @@ import (
 	"crypto/x509/pkix"
 	"encoding/pem"
 	"fmt"
+	"io"
 	"math/big"
 	"net"
 	"os"
@@ -18,6 +20,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -119,6 +122,33 @@ func freePort(t *testing.T) int {
 // startServer launches a TLS-enabled GizmoSQL server subprocess and
 // returns its Flight SQL port. Cleanup is registered on t.
 func startServer(t *testing.T) int {
+	port, _ := startServerCapturing(t)
+	return port
+}
+
+// serverLog is a goroutine-safe buffer for the server subprocess's
+// combined stdout/stderr, so tests can assert on server-side events
+// (e.g. that a statement was actually interrupted) while the output
+// still reaches the test's stderr.
+type serverLog struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (l *serverLog) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.Write(p)
+}
+
+func (l *serverLog) String() string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.buf.String()
+}
+
+// startServerCapturing is startServer plus a handle on the server's log.
+func startServerCapturing(t *testing.T) (int, *serverLog) {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("skipping integration test in -short mode")
@@ -134,9 +164,12 @@ func startServer(t *testing.T) int {
 		"--health-port", fmt.Sprint(healthPort),
 		"--username", testUsername,
 		"--tls", certPath, keyPath,
+		// Log statement lifecycle events so tests can assert on them.
+		"--print-queries",
 	)
 	cmd.Env = append(os.Environ(), "GIZMOSQL_PASSWORD="+testPassword)
-	cmd.Stdout, cmd.Stderr = os.Stderr, os.Stderr
+	logs := &serverLog{}
+	cmd.Stdout, cmd.Stderr = io.MultiWriter(os.Stderr, logs), io.MultiWriter(os.Stderr, logs)
 	if err := cmd.Start(); err != nil {
 		t.Fatalf("start gizmosql_server (%s): %v", bin, err)
 	}
@@ -151,12 +184,12 @@ func startServer(t *testing.T) int {
 		conn, err := net.DialTimeout("tcp", addr, time.Second)
 		if err == nil {
 			conn.Close()
-			return port
+			return port, logs
 		}
 		time.Sleep(200 * time.Millisecond)
 	}
 	t.Fatalf("gizmosql_server did not accept connections on %s within 30s", addr)
-	return 0
+	return 0, nil
 }
 
 func connectOptions(port int) map[string]string {
