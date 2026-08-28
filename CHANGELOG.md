@@ -11,6 +11,11 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Changed
+- README: document the 16 MiB gRPC message cap on bulk ingest and how to
+  tune it (`adbc.flight.sql.client_option.with_max_msg_size`, or smaller
+  source batches).
+
 ## [2.0.9] - 2026-08-27
 
 ### Added

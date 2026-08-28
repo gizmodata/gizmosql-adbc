@@ -350,6 +350,38 @@ OAuth/SSO (`auth_type="external"`), connection profiles (`profile=`),
 bulk ingest (`cursor.adbc_ingest`), and Pandas integration all work
 exactly as in 1.x.
 
+### Tuning bulk-ingest batch size
+
+`cursor.adbc_ingest` streams each incoming Arrow record batch as one
+Flight SQL `DoPut` message, and the driver's gRPC client caps a single
+message at **16 MiB** by default. A source that produces large batches
+(e.g. the Db2 driver's default of 65,536 rows on a wide table) fails with:
+
+```
+InternalError: INTERNAL: [GizmoSQL] [FlightSQL] trying to send message larger
+than max (54101430 vs. 16777216) (ResourceExhausted; ExecuteIngest)
+```
+
+Two ways to fix it:
+
+1. **Prefer smaller batches at the source** — e.g. `?batch_size=8192` on
+   the Db2 URI, or `pyarrow.Table.to_batches(max_chunksize=...)` /
+   `RecordBatchReader` slicing for in-memory data. Smaller batches also use
+   less memory on both client and server.
+2. **Raise the client's gRPC message cap** via `db_kwargs` (the GizmoSQL
+   server imposes no receive limit of its own):
+
+```python
+with gizmosql.connect("gizmosql://localhost:31337",
+                      username="gizmosql_user",
+                      password="gizmosql_password",
+                      db_kwargs={"adbc.flight.sql.client_option.with_max_msg_size": str(256 * 1024 * 1024)},
+                      ) as conn:
+    ...
+```
+
+The same option also raises the *receive* cap for large result batches.
+
 ### Query cancellation
 
 A long-running query is cancelled **on the server** (GizmoSQL interrupts
