@@ -237,6 +237,8 @@ def connect(
     oauth_tls_skip_verify: Optional[bool] = None,
     oauth_timeout: int = 300,
     open_browser: bool = True,
+    catalog: Optional[str] = None,
+    db_schema: Optional[str] = None,
     db_kwargs: Optional[dict[str, str]] = None,
     conn_kwargs: Optional[dict[str, str]] = None,
     autocommit: bool = True,
@@ -264,6 +266,12 @@ def connect(
             ``tls_skip_verify``).
         oauth_timeout: Seconds to wait for OAuth completion.
         open_browser: Automatically open the browser for OAuth.
+        catalog: Catalog (DuckDB database) to make current for the
+            session, applied at connect time — shorthand for
+            ``conn_kwargs={"adbc.connection.catalog": ...}``. The catalog
+            must already be attached on the server.
+        db_schema: Schema to make current for the session — shorthand
+            for ``conn_kwargs={"adbc.connection.db_schema": ...}``.
         db_kwargs: Extra ADBC database options.
         conn_kwargs: Extra ADBC connection options.
         autocommit: Enable autocommit (default True).
@@ -286,6 +294,12 @@ def connect(
 
     if tls_skip_verify:
         db_kwargs.setdefault(DatabaseOptions.TLS_SKIP_VERIFY.value, "true")
+
+    _conn_opts = adbc_driver_manager.ConnectionOptions
+    if catalog is not None:
+        conn_kwargs.setdefault(_conn_opts.CURRENT_CATALOG.value, catalog)
+    if db_schema is not None:
+        conn_kwargs.setdefault(_conn_opts.CURRENT_DB_SCHEMA.value, db_schema)
 
     if oauth_tls_skip_verify is None:
         oauth_tls_skip_verify = tls_skip_verify

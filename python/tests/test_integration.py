@@ -813,3 +813,40 @@ class TestOpenTelemetryTracing:
         assert trace_files, "expected the adbcfile exporter to write trace output"
         contents = "".join(f.read_text() for f in trace_files)
         assert "ExecuteQuery" in contents or "execute" in contents.lower()
+
+
+class TestConnectCatalog:
+    """connect(catalog=..., db_schema=...) makes them current for the session."""
+
+    def test_catalog_kwarg_sets_current_catalog(self, gizmosql_server, gizmosql_uri):
+        from conftest import GIZMOSQL_PASSWORD, GIZMOSQL_USERNAME
+
+        from adbc_driver_gizmosql import dbapi as gizmosql
+
+        # Attach a second in-memory catalog so there is something other
+        # than the default "memory" catalog to switch to. Session-scoped
+        # server + per-session DuckDB connection, so attach on the same
+        # connection that will use it... except a fresh connection is
+        # what we're testing — so attach first, then reconnect.
+        with gizmosql.connect(
+            gizmosql_uri,
+            username=GIZMOSQL_USERNAME,
+            password=GIZMOSQL_PASSWORD,
+            tls_skip_verify=True,
+        ) as setup_conn:
+            with setup_conn.cursor() as cur:
+                cur.execute("ATTACH IF NOT EXISTS ':memory:' AS catalog_kwarg_test")
+
+        with gizmosql.connect(
+            gizmosql_uri,
+            username=GIZMOSQL_USERNAME,
+            password=GIZMOSQL_PASSWORD,
+            tls_skip_verify=True,
+            catalog="catalog_kwarg_test",
+            db_schema="main",
+        ) as connection:
+            assert connection.adbc_current_catalog == "catalog_kwarg_test"
+            assert connection.adbc_current_db_schema == "main"
+            with connection.cursor() as cur:
+                cur.execute("SELECT current_catalog(), current_schema()")
+                assert cur.fetchone() == ("catalog_kwarg_test", "main")

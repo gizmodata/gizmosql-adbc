@@ -87,6 +87,28 @@ with gizmosql.connect("gizmosql://localhost:31337",
         print(table)
 ```
 
+### Choosing the catalog / schema at connect time
+
+Pass `catalog` and/or `db_schema` to make them current for the session
+(the standard ADBC `adbc.connection.catalog` / `adbc.connection.db_schema`
+options, sent via Flight SQL `SetSessionOptions`). The catalog must already
+be attached on the server. `conn.adbc_current_catalog` reads it back.
+
+```python
+from adbc_driver_gizmosql import dbapi as gizmosql
+
+with gizmosql.connect("gizmosql://localhost:31337",
+                      username="gizmosql_user",
+                      password="gizmosql_password",
+                      tls_skip_verify=True,
+                      catalog="analytics",
+                      db_schema="main",
+                      ) as conn:
+    with conn.cursor() as cur:
+        cur.execute("SELECT current_catalog(), current_schema()")
+        print(cur.fetchone())  # ('analytics', 'main')
+```
+
 ### URI schemes
 
 The preferred way to connect is the `gizmosql://` URI scheme, which is
@@ -342,6 +364,8 @@ with gizmosql.connect("gizmosql://localhost:31337",
 | `oauth_tls_skip_verify` | `bool` | `None` | TLS skip for OAuth (defaults to `tls_skip_verify`) |
 | `oauth_timeout` | `int` | `300` | Seconds to wait for OAuth |
 | `open_browser` | `bool` | `True` | Auto-open browser for OAuth |
+| `catalog` | `str` | `None` | Catalog (DuckDB database) to make current for the session; must already be attached on the server. Shorthand for `conn_kwargs={"adbc.connection.catalog": ...}` |
+| `db_schema` | `str` | `None` | Schema to make current for the session. Shorthand for `conn_kwargs={"adbc.connection.db_schema": ...}` |
 | `db_kwargs` | `dict` | `None` | Extra ADBC database options |
 | `conn_kwargs` | `dict` | `None` | Extra ADBC connection options |
 | `autocommit` | `bool` | `True` | Enable autocommit |

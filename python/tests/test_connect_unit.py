@@ -188,6 +188,45 @@ class TestConnect:
             conn_option="conn_value",
         )
 
+    def test_catalog_and_db_schema_kwargs(self, mock_db, mock_adbc_conn, mock_conn_cls, mock_lib):
+        from adbc_driver_gizmosql.dbapi import connect
+
+        mock_conn_cls.return_value = MagicMock()
+
+        connect(
+            "grpc+tls://localhost:31337",
+            username="user",
+            password="pass",
+            catalog="analytics",
+            db_schema="reporting",
+        )
+
+        # catalog/db_schema map onto the standard ADBC connection options
+        mock_adbc_conn.assert_called_once()
+        conn_kwargs = dict(mock_adbc_conn.call_args[1])
+        assert conn_kwargs == {
+            "adbc.connection.catalog": "analytics",
+            "adbc.connection.db_schema": "reporting",
+        }
+
+    def test_catalog_kwarg_does_not_override_explicit_conn_kwargs(
+        self, mock_db, mock_adbc_conn, mock_conn_cls, mock_lib
+    ):
+        from adbc_driver_gizmosql.dbapi import connect
+
+        mock_conn_cls.return_value = MagicMock()
+
+        connect(
+            "grpc+tls://localhost:31337",
+            username="user",
+            password="pass",
+            catalog="from_kwarg",
+            conn_kwargs={"adbc.connection.catalog": "from_conn_kwargs"},
+        )
+
+        conn_kwargs = dict(mock_adbc_conn.call_args[1])
+        assert conn_kwargs["adbc.connection.catalog"] == "from_conn_kwargs"
+
     def test_autocommit_default_true(self, mock_db, mock_adbc_conn, mock_conn_cls, mock_lib):
         from adbc_driver_gizmosql.dbapi import connect
 
