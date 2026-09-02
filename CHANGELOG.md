@@ -11,6 +11,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.10] - 2026-09-02
+
 ### Added
 - Python: `dbapi.connect()` accepts `catalog=` and `db_schema=` keyword
   arguments to make a catalog/schema current for the session at connect
@@ -32,7 +34,9 @@ Python bindings), succeeding the 1.x pure-Python driver.
   repeated; bulk ingest (`adbc.ingest.target_table`) and Substrait plans
   are unchanged; `SetSqlQuery`/`SetSubstraitPlan` reset the prepared
   state so a re-bound statement re-prepares against the new query.
-  Live-server tests added.
+  Live-server tests added. Note that correct handling of NULL,
+  dictionary-encoded and multi-row bound parameters also needs GizmoSQL
+  server >= 1.38.1, which fixed the server-side parameter conversion.
 
 ### Changed
 - README: document the 16 MiB gRPC message cap on bulk ingest and how to
