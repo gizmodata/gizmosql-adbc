@@ -11,6 +11,29 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Added
+- Python: `dbapi.connect()` accepts `catalog=` and `db_schema=` keyword
+  arguments to make a catalog/schema current for the session at connect
+  time. They are shorthand for the standard ADBC
+  `adbc.connection.catalog` / `adbc.connection.db_schema` connection
+  options (which already worked via `conn_kwargs`), sent to the server
+  via Flight SQL `SetSessionOptions`. Unit and live-server tests added.
+
+### Fixed
+- **Parameter binding without an explicit `Prepare`.** `Bind`/`BindStream`
+  on a SQL query now auto-prepare the statement. The upstream Flight SQL
+  driver treats an unprepared Bind as staged bulk-ingest data and then
+  fails `ExecuteQuery`/`ExecuteUpdate` with
+  `must set IngestTargetTable before bulk ingestion`, so consumers whose
+  statement API has no prepare step — notably the Node.js
+  `@apache-arrow/adbc-driver-manager`, where `connection.query(sql,
+  params)` is `setSqlQuery` + `bind` + `executeQuery` — could not bind
+  parameters at all. An explicit `Prepare` still works and is not
+  repeated; bulk ingest (`adbc.ingest.target_table`) and Substrait plans
+  are unchanged; `SetSqlQuery`/`SetSubstraitPlan` reset the prepared
+  state so a re-bound statement re-prepares against the new query.
+  Live-server tests added.
+
 ### Changed
 - README: document the 16 MiB gRPC message cap on bulk ingest and how to
   tune it (`adbc.flight.sql.client_option.with_max_msg_size`, or smaller
