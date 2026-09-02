@@ -207,7 +207,11 @@ _, affected, _ := stmt.ExecuteQuery(ctx) // affected == 2, already executed
 
 Routing applies to plain SQL only — statements with bound parameters
 (`Bind`/`BindStream`) or Substrait plans use standard prepared-statement
-semantics.
+semantics. `Prepare` is implicit when parameters are bound to a SQL query:
+`SetSqlQuery` + `Bind` + `ExecuteQuery` works without an explicit `Prepare`
+call (the upstream Flight SQL driver would otherwise treat the bound data as
+bulk-ingest rows), so driver managers that expose no prepare step — such
+as the Node.js `@apache-arrow/adbc-driver-manager` — can bind parameters.
 
 ### OAuth/SSO authentication
 

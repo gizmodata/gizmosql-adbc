@@ -167,6 +167,13 @@ type statement struct {
 	cnxn     adbc.Connection // for transparent statement recreation
 	query    string          // last SetSqlQuery value; "" for substrait plans
 	hasBound bool
+	// prepared reports whether Prepare has run on the current inner
+	// statement. Bind/BindStream on a SQL query auto-prepare when it is
+	// false: upstream treats an unprepared Bind as staged bulk-ingest
+	// data and then rejects execution ("must set IngestTargetTable
+	// before bulk ingestion"), which breaks consumers that have no
+	// Prepare call at all (e.g. the Node.js adbc-driver-manager).
+	prepared bool
 	// setOpts records options applied to the inner statement so they can
 	// be replayed if the statement is recreated (per-operation
 	// adbc.ingest.* keys excluded).
@@ -275,6 +282,7 @@ func (s *statement) resetForNewQuery() error {
 	old := s.Statement
 	s.Statement = fresh
 	s.hasBound = false
+	s.prepared = false
 	s.boundSchema = nil
 	return old.Close()
 }
@@ -307,6 +315,7 @@ func (s *statement) SetSqlQuery(query string) error {
 		return err
 	}
 	s.query = query
+	s.prepared = false // upstream closes its prepared statement here
 	// A SQL query supersedes any pending ingest (mirrors the upstream
 	// driver clearing its ingest target on SetSqlQuery).
 	s.ingestTarget = ""
@@ -321,10 +330,34 @@ func (s *statement) SetSubstraitPlan(plan []byte) error {
 		return err
 	}
 	s.query = ""
+	s.prepared = false // upstream closes its prepared statement here
 	return nil
 }
 
+func (s *statement) Prepare(ctx context.Context) error {
+	if err := s.Statement.Prepare(ctx); err != nil {
+		return err
+	}
+	s.prepared = true
+	return nil
+}
+
+// autoPrepare makes Prepare implicit for parameter binding: a Bind or
+// BindStream against a SQL query that has not been prepared prepares it
+// first, so the bound data is treated as query parameters rather than
+// staged bulk-ingest rows. Ingest (target table set) and Substrait
+// paths are left untouched.
+func (s *statement) autoPrepare(ctx context.Context) error {
+	if s.query == "" || s.ingestTarget != "" || s.prepared {
+		return nil
+	}
+	return s.Prepare(ctx)
+}
+
 func (s *statement) Bind(ctx context.Context, values arrow.RecordBatch) error {
+	if err := s.autoPrepare(ctx); err != nil {
+		return err
+	}
 	if err := s.Statement.Bind(ctx, values); err != nil {
 		return err
 	}
@@ -334,6 +367,9 @@ func (s *statement) Bind(ctx context.Context, values arrow.RecordBatch) error {
 }
 
 func (s *statement) BindStream(ctx context.Context, stream array.RecordReader) error {
+	if err := s.autoPrepare(ctx); err != nil {
+		return err
+	}
 	if err := s.Statement.BindStream(ctx, stream); err != nil {
 		return err
 	}
