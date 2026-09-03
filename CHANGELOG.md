@@ -11,6 +11,17 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.11] - 2026-09-03
+
+### Changed
+- Bump `google.golang.org/grpc` 1.83.1 -> 1.83.2, matching the upstream
+  Flight SQL ADBC driver's 1.12.2 registry release
+  (https://adbc-drivers.org/blog/2026/09/02/updated-flightsql-driver/).
+  The 1.83.2 fix hardens gRPC *servers* (requests missing both
+  `:authority` and `Host` are rejected); this driver is a gRPC client only
+  and `govulncheck` reports no reachable vulnerability, so this is parity,
+  not a fix. No functional changes.
+
 ## [2.0.10] - 2026-09-02
 
 ### Added
