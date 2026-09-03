@@ -230,3 +230,63 @@ func TestIntegrationAbandonedResultCancelsRunningQuery(t *testing.T) {
 	waitForLog(t, logs, serverCanceledMarker, 5*time.Second)
 	assertSessionUsable(t, cnxn)
 }
+
+// Closing a statement while ExecuteUpdate is blocked in DoPut — what the
+// Node.js driver manager does when its statement handle is closed to
+// cancel — must interrupt the update on the server and leave no table
+// behind.
+func TestIntegrationCloseWhileUpdateExecutingCancelsOnServer(t *testing.T) {
+	cnxn, logs := openIntegration(t)
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stmt.SetSqlQuery("CREATE TABLE cancelled_ctas AS " + longQuery); err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan error, 1)
+	go func() {
+		_, err := stmt.ExecuteUpdate(context.Background())
+		done <- err
+	}()
+	waitForLog(t, logs, serverAttemptMarker, 20*time.Second)
+	time.Sleep(time.Second)
+
+	if err := stmt.Close(); err != nil {
+		t.Fatal(err)
+	}
+	waitForLog(t, logs, serverCanceledMarker, 5*time.Second)
+
+	select {
+	case err := <-done:
+		if err == nil {
+			t.Fatal("expected the interrupted update to fail")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("ExecuteUpdate did not return after the server-side cancel")
+	}
+	if n := strings.Count(logs.String(), serverCanceledMarker); n != 1 {
+		t.Fatalf("server logged %d cancels, want exactly 1", n)
+	}
+	assertSessionUsable(t, cnxn)
+
+	check, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer check.Close()
+	if err := check.SetSqlQuery("SELECT count(*) FROM duckdb_tables() WHERE table_name = 'cancelled_ctas'"); err != nil {
+		t.Fatal(err)
+	}
+	rdr, _, err := check.ExecuteQuery(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rdr.Release()
+	if !rdr.Next() {
+		t.Fatalf("no rows (err=%v)", rdr.Err())
+	}
+	if n := rdr.RecordBatch().Column(0).(*array.Int64).Value(0); n != 0 {
+		t.Fatalf("cancelled CTAS left %d table(s) behind", n)
+	}
+}

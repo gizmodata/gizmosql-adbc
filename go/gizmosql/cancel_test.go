@@ -399,3 +399,98 @@ func TestImplicitCancelIsBounded(t *testing.T) {
 		t.Fatalf("implicitCancelTimeout %v is too long for a Close path", implicitCancelTimeout)
 	}
 }
+
+// ---------------------------------------------------------------------
+// In-flight execute calls (ExecuteUpdate / ExecuteQuery blocked in the
+// RPC): Close and CancelQuery must claim the cancel exactly once.
+// ---------------------------------------------------------------------
+
+func TestClaimInFlightOnlyWhileCallIsRunning(t *testing.T) {
+	st := &statement{}
+	if st.claimInFlight() {
+		t.Fatal("nothing in flight: claim must fail")
+	}
+	call := st.beginCall()
+	if !st.claimInFlight() {
+		t.Fatal("call in flight: first claim must succeed")
+	}
+	if st.claimInFlight() {
+		t.Fatal("claim must be one-shot per call")
+	}
+	st.endCall(call)
+	if st.claimInFlight() {
+		t.Fatal("call finished: claim must fail")
+	}
+}
+
+func TestEndCallIgnoresStaleCalls(t *testing.T) {
+	st := &statement{}
+	first := st.beginCall()
+	second := st.beginCall()
+	st.endCall(first) // stale: must not clear the newer call
+	if !st.claimInFlight() {
+		t.Fatal("newer call still in flight")
+	}
+	st.endCall(second)
+	if st.claimInFlight() {
+		t.Fatal("no call in flight after endCall")
+	}
+}
+
+func TestCancelQueryMarksInFlightCallSoCloseDoesNotResend(t *testing.T) {
+	fake, cnxn := openFake(t, 1)
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := stmt.(*statement)
+	call := st.beginCall()
+	if err := st.CancelQuery(context.Background()); err != nil {
+		t.Fatalf("CancelQuery: %v", err)
+	}
+	if st.claimInFlight() {
+		t.Fatal("explicit CancelQuery must claim the in-flight cancel")
+	}
+	st.endCall(call)
+	if err := stmt.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(fake.cancels()); n != 1 {
+		t.Fatalf("cancels = %d, want exactly 1 (explicit)", n)
+	}
+}
+
+func TestCloseDuringInFlightCallCancelsOnServer(t *testing.T) {
+	fake, cnxn := openFake(t, 1)
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	st := stmt.(*statement)
+	if err := st.SetSqlQuery("CREATE TABLE t AS SELECT 1"); err != nil {
+		t.Fatal(err)
+	}
+	// Simulate another goroutine parked inside ExecuteUpdate.
+	call := st.beginCall()
+	if err := stmt.Close(); err != nil {
+		t.Fatal(err)
+	}
+	st.endCall(call)
+	if n := len(fake.cancels()); n != 1 {
+		t.Fatalf("cancels = %d, want exactly 1", n)
+	}
+}
+
+func TestCloseWithNothingInFlightDoesNotCancel(t *testing.T) {
+	fake, cnxn := openFake(t, 1)
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := stmt.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if n := len(fake.cancels()); n != 0 {
+		t.Fatalf("cancels = %d, want 0", n)
+	}
+}

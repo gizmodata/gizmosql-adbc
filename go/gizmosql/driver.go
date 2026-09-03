@@ -19,6 +19,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"sync/atomic"
 
 	"github.com/apache/arrow-adbc/go/adbc"
 	"github.com/apache/arrow-adbc/go/adbc/driver/flightsql"
@@ -192,6 +193,38 @@ type statement struct {
 	// streaming execution so Close can interrupt an abandoned query.
 	canceler *sessionCanceler
 	current  *execState
+	// inFlight is the blocking execute call currently in progress
+	// (ExecuteUpdate, or ExecuteQuery up to the point it returns a
+	// reader), if any, so Close/CancelQuery can interrupt it on the server
+	// even though the caller's goroutine is parked inside the RPC. Without
+	// this, releasing a statement while a DoPut update ran left the update
+	// running to completion.
+	inFlight atomic.Pointer[callState]
+}
+
+// callState tracks one blocking execute call so the server is asked to
+// interrupt it at most once.
+type callState struct {
+	cancelled atomic.Bool
+}
+
+// beginCall marks a blocking execute call as in progress.
+func (s *statement) beginCall() *callState {
+	c := &callState{}
+	s.inFlight.Store(c)
+	return c
+}
+
+// endCall clears the in-flight marker once the blocking call returns.
+func (s *statement) endCall(c *callState) {
+	s.inFlight.CompareAndSwap(c, nil)
+}
+
+// claimInFlight reports whether a blocking call is in progress that has
+// not been cancelled yet, claiming the cancel so it is sent only once.
+func (s *statement) claimInFlight() bool {
+	c := s.inFlight.Load()
+	return c != nil && c.cancelled.CompareAndSwap(false, true)
 }
 
 // CancelQuery asks the server to interrupt the statement's in-flight
@@ -203,6 +236,9 @@ func (s *statement) CancelQuery(ctx context.Context) error {
 	}
 	if cur := s.current; cur != nil {
 		cur.cancelled.Store(true)
+	}
+	if c := s.inFlight.Load(); c != nil {
+		c.cancelled.Store(true)
 	}
 	return s.canceler.cancel(ctx, s.query)
 }
@@ -218,10 +254,15 @@ func (s *statement) cancelAbandoned() {
 	_ = s.canceler.cancel(ctx, s.query)
 }
 
-// Close interrupts an abandoned in-flight query on the server before
-// closing the inner statement.
+// Close interrupts an abandoned execution on the server before closing
+// the inner statement: either a blocking ExecuteUpdate/ExecuteQuery call
+// another goroutine is still parked in (e.g. a language binding releasing
+// the statement to cancel it), or a streaming result that was never
+// drained.
 func (s *statement) Close() error {
-	if cur := s.current; cur != nil && cur.abandoned() {
+	if s.claimInFlight() {
+		s.cancelAbandoned()
+	} else if cur := s.current; cur != nil && cur.abandoned() {
 		s.cancelAbandoned()
 	}
 	return s.Statement.Close()
@@ -379,6 +420,8 @@ func (s *statement) BindStream(ctx context.Context, stream array.RecordReader) e
 }
 
 func (s *statement) ExecuteUpdate(ctx context.Context) (int64, error) {
+	call := s.beginCall()
+	defer s.endCall(call)
 	// Geometry-aware ingest: geoarrow.* columns need the interim-table
 	// path (see geoingest.go); everything else delegates untouched.
 	if s.ingestTarget != "" {
@@ -390,6 +433,8 @@ func (s *statement) ExecuteUpdate(ctx context.Context) (int64, error) {
 }
 
 func (s *statement) ExecuteQuery(ctx context.Context) (array.RecordReader, int64, error) {
+	call := s.beginCall()
+	defer s.endCall(call)
 	if s.query == "" || s.hasBound {
 		reader, affected, err := s.Statement.ExecuteQuery(ctx)
 		if err != nil {

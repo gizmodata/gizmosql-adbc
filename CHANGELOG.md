@@ -11,6 +11,20 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.12] - 2026-09-03
+
+### Fixed
+- **Closing a statement while `ExecuteUpdate` is blocked now cancels the
+  update on the server.** The statement tracks its in-flight blocking
+  execute call (`ExecuteUpdate`, and `ExecuteQuery` until it returns a
+  reader); `Close` — and `CancelQuery` — issue `CancelFlightInfo` for it
+  exactly once, so a language binding that releases the statement handle
+  to cancel (the Node.js `adbc-driver-manager` has no cancel API) no
+  longer leaves a `DoPut` update such as `CREATE TABLE ... AS` running to
+  completion. Previously only abandoned streaming results and blocked
+  queries were interrupted. Covered by unit tests and
+  `TestIntegrationCloseWhileUpdateExecutingCancelsOnServer`.
+
 ## [2.0.11] - 2026-09-03
 
 ### Changed
