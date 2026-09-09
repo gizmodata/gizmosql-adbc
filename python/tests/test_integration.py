@@ -525,6 +525,78 @@ class TestReturningClause:
                 cur.execute_update(query="DROP TABLE test_no_returning")
 
 
+class TestBoundParameterRouting:
+    """Parameterized DDL/DML issued via cursor.execute(sql, params) must
+    execute immediately, exactly like the literal form.
+
+    Field report: ``DELETE ... WHERE uuid_col = ?`` was a silent no-op on a
+    DuckLake table while the literal ``DELETE ... WHERE uuid_col = '...'``
+    worked. Bound parameters used to bypass the driver's DDL/DML routing,
+    so the DELETE took GizmoSQL's lazy query path and only ran when the
+    result was read — and the driver's abandoned-stream cancel could then
+    interrupt the still-running write when the cursor moved on. The
+    literal form was simply already on the synchronous DoPut path.
+    """
+
+    UUID = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
+
+    def test_bound_delete_without_fetch_persists(self, conn):
+        with conn.cursor() as cur:
+            cur.execute_update(query="CREATE TABLE test_bound_dml (id UUID, v INT)")
+            cur.execute_update(query=f"INSERT INTO test_bound_dml VALUES ('{self.UUID}', 1)")
+        try:
+            # Same cursor, no fetch between the DML and the next statement —
+            # the loader shape that lost the DELETE.
+            with conn.cursor() as cur:
+                cur.execute(
+                    operation="UPDATE test_bound_dml SET v = 2 WHERE id = ?",
+                    parameters=[self.UUID],
+                )
+                assert cur.description is None
+                assert cur.rowcount == 1
+                cur.execute(operation="SELECT v FROM test_bound_dml")
+                assert cur.fetchone()[0] == 2
+
+                cur.execute(
+                    operation="DELETE FROM test_bound_dml WHERE id = ?",
+                    parameters=[self.UUID],
+                )
+                assert cur.description is None
+                assert cur.rowcount == 1
+                cur.execute(operation="SELECT count(*) FROM test_bound_dml")
+                assert cur.fetchone()[0] == 0
+        finally:
+            with conn.cursor() as cur:
+                cur.execute_update(query="DROP TABLE test_bound_dml")
+
+    def test_bound_insert_returning_without_fetch_persists(self, conn):
+        with conn.cursor() as cur:
+            cur.execute_update(query="CREATE TABLE test_bound_returning (msg VARCHAR)")
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    operation="INSERT INTO test_bound_returning VALUES (?) RETURNING msg",
+                    parameters=["hello"],
+                )
+                # Materialized: result metadata is available without a fetch.
+                assert cur.description is not None
+                assert cur.rowcount == 1
+                cur.execute(operation="SELECT count(*) FROM test_bound_returning")
+                assert cur.fetchone()[0] == 1
+        finally:
+            with conn.cursor() as cur:
+                cur.execute_update(query="DROP TABLE test_bound_returning")
+
+    def test_bound_select_still_streams(self, conn):
+        with conn.cursor() as cur:
+            cur.execute(
+                operation="SELECT n_name FROM nation WHERE n_nationkey = ?",
+                parameters=[24],
+            )
+            assert cur.description is not None
+            assert cur.fetchone()[0] == "UNITED STATES"
+
+
 class TestConnectionContextManager:
     """Test that the connection works properly as a context manager."""
 

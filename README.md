@@ -205,9 +205,12 @@ stmt.SetSqlQuery("INSERT INTO t VALUES (1), (2)")
 _, affected, _ := stmt.ExecuteQuery(ctx) // affected == 2, already executed
 ```
 
-Routing applies to plain SQL only — statements with bound parameters
-(`Bind`/`BindStream`) or Substrait plans use standard prepared-statement
-semantics. `Prepare` is implicit when parameters are bound to a SQL query:
+Routing also applies to statements with bound parameters
+(`Bind`/`BindStream`): a parameterized `INSERT`/`UPDATE`/`DELETE` issued via
+`ExecuteQuery` executes immediately through the prepared-statement update
+RPC (once per bound row), and a parameterized `... RETURNING` is eagerly
+materialized. Only Substrait plans and bulk ingest use the standard lazy
+query path. `Prepare` is implicit when parameters are bound to a SQL query:
 `SetSqlQuery` + `Bind` + `ExecuteQuery` works without an explicit `Prepare`
 call (the upstream Flight SQL driver would otherwise treat the bound data as
 bulk-ingest rows), so driver managers that expose no prepare step — such

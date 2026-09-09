@@ -11,6 +11,25 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.13] - 2026-09-09
+
+### Fixed
+- **Parameterized DDL/DML issued via `ExecuteQuery` (Python
+  `cursor.execute(sql, params)`) could be silently lost.** Execution routing
+  skipped statements with bound parameters, so a parameterized
+  `DELETE`/`UPDATE`/`INSERT` took GizmoSQL's lazy query path and only ran when
+  the caller read the result — and, since 2.0.9, moving on to the next
+  statement before the write finished sent a server-side cancel that
+  interrupted it (server log: `INTERRUPT Error: Interrupted!`). Reported as a
+  DuckLake/UUID quirk (`DELETE ... WHERE uuid_col = ?` no-oping while the
+  literal form worked) — the literal form was simply already on the DoPut
+  path. Bound DDL/DML now routes through the prepared-statement update RPC
+  (executing once per bound row, like `executemany`), and bound
+  `... RETURNING` statements are materialized. Covered by
+  `TestIntegrationBoundDMLPersistsWithoutFetch`,
+  `TestIntegrationBoundReturningPersistsWithoutFetch` and the Python
+  `TestBoundParameterRouting` tests.
+
 ## [2.0.12] - 2026-09-03
 
 ### Fixed

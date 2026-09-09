@@ -428,3 +428,122 @@ func TestIntegrationGeoArrowIngest(t *testing.T) {
 		t.Errorf("plain column type = %q", typ)
 	}
 }
+
+// stringBatch builds a single-column utf8 batch named "p".
+func stringBatch(t *testing.T, vals ...string) arrow.RecordBatch {
+	t.Helper()
+	schema := arrow.NewSchema([]arrow.Field{{Name: "p", Type: arrow.BinaryTypes.String}}, nil)
+	bldr := array.NewRecordBuilder(memory.DefaultAllocator, schema)
+	defer bldr.Release()
+	bldr.Field(0).(*array.StringBuilder).AppendValues(vals, nil)
+	return bldr.NewRecordBatch()
+}
+
+// execBoundQuery binds one string parameter row to sql and runs it via
+// ExecuteQuery WITHOUT consuming the result — the Python
+// cursor.execute(sql, params) shape that used to fall through to the lazy
+// query path. Returns the affected-row count.
+func execBoundQuery(t *testing.T, cnxn adbc.Connection, sql string, param string) int64 {
+	t.Helper()
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatalf("NewStatement: %v", err)
+	}
+	defer stmt.Close()
+	if err := stmt.SetSqlQuery(sql); err != nil {
+		t.Fatalf("SetSqlQuery(%q): %v", sql, err)
+	}
+	rec := stringBatch(t, param)
+	defer rec.Release()
+	if err := stmt.Bind(context.Background(), rec); err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	reader, affected, err := stmt.ExecuteQuery(context.Background())
+	if err != nil {
+		t.Fatalf("ExecuteQuery(%q): %v", sql, err)
+	}
+	reader.Release() // deliberately never read
+	return affected
+}
+
+// TestIntegrationBoundDMLPersistsWithoutFetch reproduces the field report
+// that `DELETE ... WHERE uuid_col = ?` was a silent no-op while the literal
+// form worked: bound-parameter DML must execute immediately via the
+// prepared-statement update RPC, not lazily on a DoGet nobody reads.
+func TestIntegrationBoundDMLPersistsWithoutFetch(t *testing.T) {
+	port := startServer(t)
+	cnxn := openConn(t, port)
+
+	execQuery(t, cnxn, "CREATE TABLE bound_dml_t (id UUID, v INT)")
+	defer execQuery(t, cnxn, "DROP TABLE IF EXISTS bound_dml_t")
+	const id = "0f1e2d3c-4b5a-6978-8796-a5b4c3d2e1f0"
+	execQuery(t, cnxn, "INSERT INTO bound_dml_t VALUES ('"+id+"', 1)")
+
+	n := execBoundQuery(t, cnxn, "UPDATE bound_dml_t SET v = 2 WHERE id = ?", id)
+	if n != 1 {
+		t.Errorf("bound UPDATE affected = %d, want 1", n)
+	}
+	if got := queryInt64(t, cnxn, "SELECT v FROM bound_dml_t"); got != 2 {
+		t.Errorf("v = %d after bound UPDATE, want 2 — update did not persist", got)
+	}
+
+	n = execBoundQuery(t, cnxn, "DELETE FROM bound_dml_t WHERE id = ?", id)
+	if n != 1 {
+		t.Errorf("bound DELETE affected = %d, want 1", n)
+	}
+	if got := queryInt64(t, cnxn, "SELECT COUNT(*) FROM bound_dml_t"); got != 0 {
+		t.Errorf("COUNT(*) = %d after bound DELETE, want 0 — delete did not persist", got)
+	}
+}
+
+// TestIntegrationBoundReturningPersistsWithoutFetch: bound DML with a
+// RETURNING clause must stay on the query path (it yields rows) but be
+// materialized, so it fires even when the reader is released unread.
+func TestIntegrationBoundReturningPersistsWithoutFetch(t *testing.T) {
+	port := startServer(t)
+	cnxn := openConn(t, port)
+
+	execQuery(t, cnxn, "CREATE TABLE bound_returning_t (msg VARCHAR)")
+	defer execQuery(t, cnxn, "DROP TABLE IF EXISTS bound_returning_t")
+
+	n := execBoundQuery(t, cnxn,
+		"INSERT INTO bound_returning_t VALUES (?) RETURNING msg", "hello")
+	if n != 1 {
+		t.Errorf("bound INSERT..RETURNING affected = %d, want 1", n)
+	}
+	if got := queryInt64(t, cnxn, "SELECT COUNT(*) FROM bound_returning_t"); got != 1 {
+		t.Errorf("COUNT(*) = %d, want 1 — bound RETURNING insert did not persist", got)
+	}
+}
+
+// TestIntegrationBoundSelectStillStreams: routing must not touch bound
+// SELECTs — the parameter is applied and a normal result set streams back.
+func TestIntegrationBoundSelectStillStreams(t *testing.T) {
+	port := startServer(t)
+	cnxn := openConn(t, port)
+
+	stmt, err := cnxn.NewStatement()
+	if err != nil {
+		t.Fatalf("NewStatement: %v", err)
+	}
+	defer stmt.Close()
+	if err := stmt.SetSqlQuery("SELECT length(?) AS n"); err != nil {
+		t.Fatal(err)
+	}
+	rec := stringBatch(t, "abcd")
+	defer rec.Release()
+	if err := stmt.Bind(context.Background(), rec); err != nil {
+		t.Fatalf("Bind: %v", err)
+	}
+	reader, _, err := stmt.ExecuteQuery(context.Background())
+	if err != nil {
+		t.Fatalf("ExecuteQuery: %v", err)
+	}
+	defer reader.Release()
+	if !reader.Next() {
+		t.Fatal("no rows from bound SELECT")
+	}
+	if got := reader.RecordBatch().Column(0).(*array.Int64).Value(0); got != 4 {
+		t.Errorf("length(?) = %d, want 4", got)
+	}
+}

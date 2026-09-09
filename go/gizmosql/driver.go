@@ -161,8 +161,15 @@ func (c *connection) GetInfo(ctx context.Context, infoCodes []adbc.InfoCode) (ar
 //     caller consumes the returned reader.
 //   - Everything else (SELECT/WITH/SHOW/...) streams as usual.
 //
-// Routing applies only to plain SQL without bound parameters, matching
-// the 1.x Python driver (Bind switches to prepared-statement semantics).
+// Routing also applies when parameters are bound (Bind/BindStream on a
+// prepared SQL statement): a bound DDL/DML statement goes through the
+// prepared-statement update RPC (DoPut), which executes once per bound
+// row, and a bound RETURNING statement is materialized. Without this, a
+// parameterized DELETE/UPDATE/INSERT issued via ExecuteQuery only ran when
+// the caller read the result — and since the driver cancels abandoned
+// streams on the server (cancel.go), a caller that moved on to its next
+// statement before the DML finished would interrupt its own write.
+// Substrait plans and bulk-ingest statements are delegated untouched.
 type statement struct {
 	adbc.Statement
 	cnxn     adbc.Connection // for transparent statement recreation
@@ -435,7 +442,7 @@ func (s *statement) ExecuteUpdate(ctx context.Context) (int64, error) {
 func (s *statement) ExecuteQuery(ctx context.Context) (array.RecordReader, int64, error) {
 	call := s.beginCall()
 	defer s.endCall(call)
-	if s.query == "" || s.hasBound {
+	if s.query == "" || s.ingestTarget != "" {
 		reader, affected, err := s.Statement.ExecuteQuery(ctx)
 		if err != nil {
 			return nil, -1, err
