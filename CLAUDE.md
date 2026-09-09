@@ -35,8 +35,9 @@ released too, in this order (each follows the same CHANGELOG + version bump +
    npm test`, commit, tag.
 3. **gizmosql-ui** — `~/LocalOnly/git/gizmosql-ui`. Depends on the client
    with a `^` range, but the packaged app ships whatever `package-lock.json`
-   resolved, so run `npm install @gizmodata/gizmosql-client@^<new>`, add a
-   CHANGELOG section (no `[Unreleased]` header in that file — insert a dated
+   resolved, so bump the range in package.json and run `pnpm install` — the repo is
+   **pnpm** (CI installs with a frozen `pnpm-lock.yaml`; the stray
+   `package-lock.json` is not what CI reads). Add a CHANGELOG section (no `[Unreleased]` header in that file — insert a dated
    section at the top), `npm version X.Y.Z --no-git-tag-version`,
    `npm run lint && npm run build`, commit, tag `vX.Y.Z`.
 4. **gizmosql server `-adbc` images** — `~/LocalOnly/git/gizmosql`
