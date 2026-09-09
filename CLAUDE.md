@@ -33,10 +33,16 @@ released too, in this order (each follows the same CHANGELOG + version bump +
    (`version` and `appVersion`) and `manifest.json` (MCPB bundle) to all
    equal the tag — bump all three. `npm run typecheck && npm run lint:ci &&
    npm test`, commit, tag.
-3. **gizmosql server `-adbc` images** — `~/LocalOnly/git/gizmosql`
+3. **gizmosql-ui** — `~/LocalOnly/git/gizmosql-ui`. Depends on the client
+   with a `^` range, but the packaged app ships whatever `package-lock.json`
+   resolved, so run `npm install @gizmodata/gizmosql-client@^<new>`, add a
+   CHANGELOG section (no `[Unreleased]` header in that file — insert a dated
+   section at the top), `npm version X.Y.Z --no-git-tag-version`,
+   `npm run lint && npm run build`, commit, tag `vX.Y.Z`.
+4. **gizmosql server `-adbc` images** — `~/LocalOnly/git/gizmosql`
    `Dockerfile-adbc.ci` `ARG GIZMOSQL_ADBC_VERSION="vX.Y.Z"` plus a CHANGELOG
    entry; ships with the next server release.
-4. **qgizmosql (QGIS plugin)** — `~/LocalOnly/git/qgizmosql`
+5. **qgizmosql (QGIS plugin)** — `~/LocalOnly/git/qgizmosql`
    `qgizmosql/requirements.txt` pins `adbc-driver-gizmosql==X.Y.Z` (embedded
    into the plugin ZIP at build time). Bump it, add a CHANGELOG section and a
    `changelog=` line in `qgizmosql/metadata.txt`, run
