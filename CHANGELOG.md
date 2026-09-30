@@ -11,6 +11,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.14] - 2026-09-30
+
 ### Changed
 - Bumped Go dependencies: `github.com/apache/arrow-go/v18` 18.7.0 -> 18.8.0,
   `google.golang.org/grpc` 1.83.2 -> 1.84.0, OpenTelemetry 1.45.0 -> 1.46.0,
