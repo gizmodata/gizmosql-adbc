@@ -11,7 +11,16 @@ permissions:
   id-token: write # PyPI OIDC trusted publishing
 
 jobs:
+  tests:
+    # Release gate: the full CI suite (Go unit + live-server tests, C-ABI
+    # smoke test, Python bindings on 3.10-3.14, all six library builds)
+    # must pass on the tagged commit before anything is published.
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   build-libs:
+    needs: tests
     name: lib (${{ matrix.platform }})
     strategy:
       fail-fast: false

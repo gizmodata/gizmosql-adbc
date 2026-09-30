@@ -11,6 +11,13 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Changed
+- Releases are now gated on the full CI suite: `release.yml` (PyPI wheels,
+  GitHub release) and `go-module.yml` (Go module proxy warm-up) call
+  `ci.yml` as a reusable workflow and publish nothing unless it passes on
+  the tagged commit. Previously a tag built and published without running
+  any tests.
+
 ## [2.0.14] - 2026-09-30
 
 ### Changed

@@ -14,7 +14,16 @@ on:
       - "go/v*.*.*"
 
 jobs:
+  tests:
+    # Release gate: the full CI suite (Go unit + live-server tests, C-ABI
+    # smoke test, Python bindings on 3.10-3.14, all six library builds)
+    # must pass on the tagged commit before anything is published.
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   publish-and-warm:
+    needs: tests
     name: Warm module proxy + pkg.go.dev
     runs-on: ubuntu-latest
     steps:

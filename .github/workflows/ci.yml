@@ -8,6 +8,8 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
+  # Called by release.yml and go-module.yml as the pre-publish test gate.
+  workflow_call:
 
 jobs:
   go:
