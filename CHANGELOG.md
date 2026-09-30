@@ -11,6 +11,17 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Changed
+- Bumped Go dependencies: `github.com/apache/arrow-go/v18` 18.7.0 -> 18.8.0,
+  `google.golang.org/grpc` 1.83.2 -> 1.84.0, OpenTelemetry 1.45.0 -> 1.46.0,
+  `klauspost/compress` 1.19.2 -> 1.20.1, `grpc-gateway` 2.30.0 -> 2.31.0,
+  `golang.org/x/*` and `genproto` to current, plus other indirect modules.
+  `arrow-adbc/go/adbc` (v1.12.0) and `protobuf` (1.36.12) were already at
+  the latest release.
+- Raised the Go toolchain to 1.26.8 (`go` directive in `go.mod`, which CI
+  and the release build read via `go-version-file`) so driver binaries pick
+  up the latest Go 1.26 patch fixes.
+
 ## [2.0.13] - 2026-09-09
 
 ### Fixed
