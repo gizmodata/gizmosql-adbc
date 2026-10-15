@@ -23,6 +23,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
   The same release tarballs (`libadbc_driver_gizmosql-*-linux_*.tar.gz`) carry the portable library.
 
 ### Changed
+- Go toolchain 1.26.8 -> 1.26.9 (patch release). The Go dependencies are already at their latest
+  versions.
 - CI enforces the glibc 2.17 ceiling on every Linux build (`scripts/check_glibc.sh`: library symbol
   versions and the wheel's manylinux tag) and installs the built wheels on Oracle Linux 8 (amd64 and arm64) to run
   the Python test suite there, so a portability regression can't ship (as the GizmoSQL server does

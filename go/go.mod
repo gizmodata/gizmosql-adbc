@@ -1,6 +1,6 @@
 module github.com/gizmodata/gizmosql-adbc/go
 
-go 1.26.8
+go 1.26.9
 
 require (
 	github.com/apache/arrow-adbc/go/adbc v1.12.0
