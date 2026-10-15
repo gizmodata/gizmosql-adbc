@@ -54,6 +54,11 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      - uses: mlugg/setup-zig@v2
+        if: runner.os == 'Linux'
+        with:
+          version: 0.14.1
+
       - name: Install llvm-mingw (aarch64 C toolchain for cgo)
         if: matrix.os == 'windows-11-arm'
         shell: bash
@@ -68,15 +73,13 @@ jobs:
           echo "CC=aarch64-w64-mingw32-gcc" >> "$GITHUB_ENV"
 
       - name: Build shared library
-        working-directory: go
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
           MACOSX_DEPLOYMENT_TARGET: "11.0"
         shell: bash
         run: |
-          go build -tags driverlib -buildmode=c-shared \
-            -o "build/libadbc_driver_gizmosql.${{ matrix.ext }}" ./pkg/gizmosql
+          scripts/build_lib.sh
 
       - uses: actions/setup-python@v7
         with:
@@ -103,6 +106,10 @@ jobs:
           auditwheel repair python/dist/*.whl -w python/dist-repaired
           rm python/dist/*.whl
           mv python/dist-repaired/*.whl python/dist/
+
+      - name: Check the glibc ceiling (2.17)
+        if: runner.os == 'Linux'
+        run: scripts/check_glibc.sh go/build/libadbc_driver_gizmosql.so python/dist/*.whl
 
       - name: Package artifact
         shell: bash

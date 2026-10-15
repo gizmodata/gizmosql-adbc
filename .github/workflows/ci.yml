@@ -127,6 +127,11 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
+      - uses: mlugg/setup-zig@v2
+        if: runner.os == 'Linux'
+        with:
+          version: 0.14.1
+
       - name: Install llvm-mingw (aarch64 C toolchain for cgo)
         if: matrix.os == 'windows-11-arm'
         shell: bash
@@ -141,21 +146,13 @@ jobs:
           echo "CC=aarch64-w64-mingw32-gcc" >> "$GITHUB_ENV"
 
       - name: Build shared library
-        working-directory: go
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
           MACOSX_DEPLOYMENT_TARGET: "11.0"
         shell: bash
         run: |
-          case "$(go env GOOS)" in
-            windows) EXT=dll ;;
-            darwin)  EXT=dylib ;;
-            *)       EXT=so ;;
-          esac
-          go build -tags driverlib -buildmode=c-shared \
-            -o "build/libadbc_driver_gizmosql.$EXT" ./pkg/gizmosql
-          ls -la build/
+          scripts/build_lib.sh
 
       - uses: actions/setup-python@v7
         with:
@@ -185,9 +182,52 @@ jobs:
           mv python/dist-repaired/*.whl python/dist/
           ls -la python/dist/
 
+      - name: Check the glibc ceiling (2.17)
+        if: runner.os == 'Linux'
+        run: scripts/check_glibc.sh go/build/libadbc_driver_gizmosql.so python/dist/*.whl
+
       - uses: actions/upload-artifact@v7
         with:
           name: libadbc_driver_gizmosql-${{ matrix.os }}${{ matrix.goarch != '' && format('-{0}', matrix.goarch) || '' }}
           path: |
             go/build/libadbc_driver_gizmosql.*
             python/dist/*.whl
+
+  oracle-linux-8:
+    # The published Linux wheels must install and pass on a glibc-2.28 distro (Oracle Linux 8 /
+    # RHEL 8), not only on the runner that built them: built with the runner's gcc they required
+    # glibc 2.34 and could not be installed there at all.
+    name: wheel on oracle linux 8 (${{ matrix.arch }})
+    needs: lib-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-latest
+            artifact: libadbc_driver_gizmosql-ubuntu-latest
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            artifact: libadbc_driver_gizmosql-ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    container: oraclelinux:8
+    steps:
+      - name: Install Python 3.12 and git
+        run: dnf install -y -q python3.12 python3.12-pip git tar
+
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.artifact }}
+          path: artifact
+
+      - name: Install the wheel and run the Python test suite
+        working-directory: python
+        run: |
+          ldd --version | head -1
+          python3.12 -m venv /tmp/venv
+          WHEEL=$(find ../artifact -name '*.whl' | head -1)
+          echo "wheel: $WHEEL"
+          /tmp/venv/bin/pip install -q "$WHEEL" pytest "gizmosql>=1.32.0,<2" cryptography
+          /tmp/venv/bin/python -m pytest tests -q

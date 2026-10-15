@@ -11,7 +11,21 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.15] - 2026-10-15
+
+### Fixed
+- **The Linux wheels install on glibc 2.17 and newer** (Oracle Linux / RHEL 7 and 8, Amazon Linux 2023,
+  Debian 10+, ...). The Linux shared libraries were built with the GitHub runner's gcc and so required
+  glibc 2.34 (wheels tagged `manylinux_2_34`): on an Oracle Linux 8 database server (glibc 2.28) pip
+  found no installable `adbc-driver-gizmosql` at all. They are now built with `zig cc` targeting glibc
+  2.17 (`scripts/build_lib.sh`) and tagged `manylinux_2_17`. Same Go code; only the C toolchain differs.
+  The same release tarballs (`libadbc_driver_gizmosql-*-linux_*.tar.gz`) carry the portable library.
+
 ### Changed
+- CI enforces the glibc 2.17 ceiling on every Linux build (`scripts/check_glibc.sh`: library symbol
+  versions and wheel tag) and installs the built wheels on Oracle Linux 8 (amd64 and arm64) to run
+  the Python test suite there, so a portability regression can't ship (as the GizmoSQL server does
+  since v1.30.0).
 - Releases are now gated on the full CI suite: `release.yml` (PyPI wheels,
   GitHub release) and `go-module.yml` (Go module proxy warm-up) call
   `ci.yml` as a reusable workflow and publish nothing unless it passes on

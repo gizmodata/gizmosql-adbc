@@ -43,7 +43,7 @@ python3 -m venv .venv
 pip install adbc-driver-gizmosql
 ```
 
-Platform wheels are published for Linux (amd64/arm64 manylinux), macOS
+Platform wheels are published for Linux (amd64/arm64, manylinux_2_17: glibc 2.17+ such as RHEL/Oracle Linux 7 and 8), macOS
 (arm64/amd64), and Windows (amd64/arm64). To develop from source, see
 the [repository](https://github.com/gizmodata/gizmosql-adbc).
 
