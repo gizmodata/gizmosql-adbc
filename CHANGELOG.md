@@ -11,6 +11,8 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.16] - 2026-11-09
+
 ### Fixed
 Found by running the [adbc-drivers.org validation suite](https://github.com/adbc-drivers/validation)
 against the driver (see Added).
