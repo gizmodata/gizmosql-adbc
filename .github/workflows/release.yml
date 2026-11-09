@@ -10,11 +10,17 @@ permissions:
   contents: write
   id-token: write # PyPI OIDC trusted publishing
 
+# A release run is never cancelled by a newer one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   tests:
     # Release gate: the full CI suite (Go unit + live-server tests, C-ABI
-    # smoke test, Python bindings on 3.10-3.14, all six library builds)
-    # must pass on the tagged commit before anything is published.
+    # smoke test, Python bindings on 3.10-3.14, the adbc-drivers.org
+    # validation suite, all six library builds) must pass on the tagged
+    # commit before anything is published.
     uses: ./.github/workflows/ci.yml
     permissions:
       contents: read
@@ -57,7 +63,7 @@ jobs:
       - uses: mlugg/setup-zig@v2
         if: runner.os == 'Linux'
         with:
-          version: 0.14.1
+          version: 0.17.1
 
       - name: Install llvm-mingw (aarch64 C toolchain for cgo)
         if: matrix.os == 'windows-11-arm'
@@ -67,16 +73,18 @@ jobs:
           # cannot build the aarch64 cgo runtime. Use llvm-mingw's
           # native aarch64 UCRT toolchain instead.
           curl -sSL -o "$RUNNER_TEMP/llvm-mingw.zip" \
-            https://github.com/mstorsjo/llvm-mingw/releases/download/20260616/llvm-mingw-20260616-ucrt-aarch64.zip
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-aarch64.zip
           unzip -q "$RUNNER_TEMP/llvm-mingw.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/llvm-mingw-20260616-ucrt-aarch64/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/llvm-mingw-20261104-ucrt-aarch64/bin" >> "$GITHUB_PATH"
           echo "CC=aarch64-w64-mingw32-gcc" >> "$GITHUB_ENV"
 
       - name: Build shared library
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          # Reported as ADBC_INFO_DRIVER_VERSION (release tags only).
+          DRIVER_VERSION: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || '' }}
+          MACOSX_DEPLOYMENT_TARGET: "12.0"  # Go (1.25+) requires macOS 12
         shell: bash
         run: |
           scripts/build_lib.sh
@@ -87,13 +95,13 @@ jobs:
 
       - name: Build platform wheel
         env:
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          MACOSX_DEPLOYMENT_TARGET: "12.0"  # Go (1.25+) requires macOS 12
         shell: bash
         run: |
           # An empty _PYTHON_HOST_PLATFORM blanks the wheel platform tag,
           # so only export it on the macOS amd64 cross leg.
           if [ "${{ matrix.goarch }}" = "amd64" ] && [ "$RUNNER_OS" = "macOS" ]; then
-            export _PYTHON_HOST_PLATFORM="macosx-11.0-x86_64"
+            export _PYTHON_HOST_PLATFORM="macosx-12.0-x86_64"
           fi
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
           pip install build

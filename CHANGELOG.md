@@ -11,6 +11,54 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Fixed
+Found by running the [adbc-drivers.org validation suite](https://github.com/adbc-drivers/validation)
+against the driver (see Added).
+- **Reading the current catalog or schema on a fresh connection failed** with
+  "Unauthenticated: Session not found — it may have been evicted" (Python
+  `conn.adbc_current_catalog` / `adbc_current_db_schema` on an autocommit connection that had
+  not run anything yet). GizmoSQL creates a session lazily and its `GetSessionOptions` never
+  creates one; the driver now opens the server session at connect (an empty
+  `SetSessionOptions`, as the GizmoSQL JDBC driver does).
+- **`AdbcStatementExecuteSchema` always answered NOT_IMPLEMENTED** in the C library and the
+  Python wheel (`cursor.adbc_execute_schema`): the statement wrapper hid the upstream
+  implementation. It is now forwarded, and an unprepared query is prepared first, because
+  GizmoSQL answers GetSchema only for prepared statements (preparing plans without running).
+- **Bind, then Prepare, then execute lost the parameters** ("Values were not provided for the
+  following prepared statement parameters"): Bind already prepares the statement, and the
+  explicit Prepare re-prepared it upstream, dropping what was bound. Prepare is now a no-op
+  when the current query is already prepared.
+- **GetInfo reported the upstream driver** ("ADBC Flight SQL Driver - Go", version
+  "(unknown or development build)"). It now reports `ADBC GizmoSQL Driver - Go` and, for release
+  builds, the release version (`DRIVER_VERSION` in `scripts/build_lib.sh`; development builds
+  report `unknown`).
+- The macOS wheels are tagged `macosx_12_0` (were `macosx_11_0`): Go has required macOS 12
+  since Go 1.25, so the 11.0 tag let pip install a library that macOS 11 cannot run.
+
+### Added
+- `validation/`: the adbc-drivers.org conformance suite (pinned test dependency) with GizmoSQL
+  quirks, DuckDB-specific expected results, and strict xfails for known GizmoSQL server bugs.
+  Result against GizmoSQL v1.42.2: 322 passed, 7 skipped (features the driver does not offer),
+  9 xfailed (server bugs), 0 failed. CI runs it against a GizmoSQL service container as part of
+  the release gate; it fails, never skips, when the server or driver library is missing.
+
+### Changed
+- Go dependencies: `github.com/apache/arrow-adbc/go/adbc` 1.12.0 -> 1.13.0 (ADBC 25), with the
+  Flight SQL driver now from its own module, `github.com/apache/arrow-adbc/go/driver` 1.13.0
+  (upstream split it out of `go/adbc`); `google.golang.org/grpc` 1.84.0 -> 1.85.0,
+  OpenTelemetry 1.46.0 -> 1.47.0, `klauspost/compress` 1.20.1 -> 1.20.4, `golang.org/x/*`,
+  `genproto` and other indirect modules to current. `arrow-go` (18.8.0) and `protobuf`
+  (1.36.12) were already the latest.
+- Go toolchain 1.26.9 -> 1.26.10. (Go 1.27 requires macOS 13, so moving to it would raise the
+  macOS floor; left for a minor release.)
+- Build tools: zig 0.14.1 -> 0.17.1 (Linux glibc-2.17 builds), llvm-mingw 20260616 -> 20261104
+  (Windows arm64).
+- Python: `adbc-driver-manager>=1.13.0` on Python 3.11+ (1.13 dropped 3.10, which stays on
+  `>=1.12.0`); test extras `pytest>=9.2.0`, `pytest-cov>=7.1.0`, `gizmosql>=1.42.2,<2`,
+  `cryptography>=50.0.2`; dev extras `ruff>=0.17.4`, `build>=1.6.1`; build backend
+  `setuptools>=84.2.1`. `pyarrow>=14.0.0` stays deliberately permissive (see `pyproject.toml`).
+- Workflows cancel superseded CI runs (never tag or release runs).
+
 ## [2.0.15] - 2026-10-15
 
 ### Fixed

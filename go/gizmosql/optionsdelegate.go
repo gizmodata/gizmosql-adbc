@@ -3,9 +3,11 @@
 package gizmosql
 
 import (
+	"context"
 	"strconv"
 
 	"github.com/apache/arrow-adbc/go/adbc"
+	"github.com/apache/arrow-go/v18/arrow"
 )
 
 // The database/connection/statement wrappers embed the base ADBC
@@ -209,4 +211,31 @@ func (s *statement) GetOptionDouble(key string) (float64, error) {
 		return o.GetOptionDouble(key)
 	}
 	return 0, optionNotSupported("statement", key)
+}
+
+// --- optional statement interfaces ---
+
+var _ adbc.StatementExecuteSchema = (*statement)(nil)
+
+// ExecuteSchema forwards to the upstream statement. Like the option
+// interfaces above, adbc.StatementExecuteSchema is optional and so hidden by
+// the embedded adbc.Statement: without this forwarder the C library answered
+// every AdbcStatementExecuteSchema with NOT_IMPLEMENTED although upstream
+// (and GizmoSQL) support it.
+//
+// GizmoSQL answers GetSchema only for prepared statements (an unprepared
+// GetSchema(CommandStatementQuery) is "GetSchemaStatement not implemented"),
+// so an unprepared SQL query is prepared first; preparing plans the query
+// without running it, and the prepared statement then carries the schema.
+func (s *statement) ExecuteSchema(ctx context.Context) (*arrow.Schema, error) {
+	es, ok := s.Statement.(adbc.StatementExecuteSchema)
+	if !ok {
+		return nil, adbc.Error{Code: adbc.StatusNotImplemented, Msg: "[GizmoSQL] ExecuteSchema is not supported"}
+	}
+	if s.query != "" && s.ingestTarget == "" && !s.prepared {
+		if err := s.Prepare(ctx); err != nil {
+			return nil, err
+		}
+	}
+	return es.ExecuteSchema(ctx)
 }

@@ -13,10 +13,16 @@ on:
     tags:
       - "go/v*.*.*"
 
+# A publish run is never cancelled by a newer one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   tests:
     # Release gate: the full CI suite (Go unit + live-server tests, C-ABI
-    # smoke test, Python bindings on 3.10-3.14, all six library builds)
+    # smoke test, Python bindings on 3.10-3.14, the adbc-drivers.org
+    # validation suite, all six library builds)
     # must pass on the tagged commit before anything is published.
     uses: ./.github/workflows/ci.yml
     permissions:

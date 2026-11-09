@@ -22,7 +22,7 @@ import (
 	"sync/atomic"
 
 	"github.com/apache/arrow-adbc/go/adbc"
-	"github.com/apache/arrow-adbc/go/adbc/driver/flightsql"
+	"github.com/apache/arrow-adbc/go/driver/flightsql"
 	"github.com/apache/arrow-go/v18/arrow"
 	"github.com/apache/arrow-go/v18/arrow/array"
 	"github.com/apache/arrow-go/v18/arrow/memory"
@@ -41,11 +41,15 @@ type Driver interface {
 // NewDriver creates a new GizmoSQL ADBC driver using the given Arrow
 // allocator.
 func NewDriver(alloc memory.Allocator) Driver {
-	return &driverImpl{inner: flightsql.NewDriver(alloc)}
+	if alloc == nil {
+		alloc = memory.DefaultAllocator
+	}
+	return &driverImpl{inner: flightsql.NewDriver(alloc), alloc: alloc}
 }
 
 type driverImpl struct {
 	inner flightsql.Driver
+	alloc memory.Allocator
 }
 
 func (d *driverImpl) NewDatabase(opts map[string]string) (adbc.Database, error) {
@@ -82,13 +86,14 @@ func (d *driverImpl) NewDatabaseWithOptionsContext(
 	if lg, ok := db.(adbc.DatabaseLogging); ok {
 		lg.SetLogger(NewLogger(slog.LevelError))
 	}
-	return &database{Database: db}, nil
+	return &database{Database: db, alloc: d.alloc}, nil
 }
 
 // database wraps the upstream Flight SQL database so connections (and,
 // transitively, statements) can be intercepted.
 type database struct {
 	adbc.Database
+	alloc memory.Allocator
 }
 
 func (db *database) SetOptions(opts map[string]string) error {
@@ -115,7 +120,8 @@ func (db *database) Open(ctx context.Context) (adbc.Connection, error) {
 	if err != nil {
 		return nil, err
 	}
-	return &connection{Connection: conn, canceler: sc}, nil
+	openServerSession(ctx, sc)
+	return &connection{Connection: conn, canceler: sc, alloc: db.alloc}, nil
 }
 
 // connection wraps the upstream connection to hand out GizmoSQL
@@ -126,6 +132,7 @@ type connection struct {
 	adbc.Connection
 	getInfoMu sync.Mutex
 	canceler  *sessionCanceler
+	alloc     memory.Allocator
 }
 
 func (c *connection) NewStatement() (adbc.Statement, error) {
@@ -145,7 +152,11 @@ func (c *connection) CancelQuery(ctx context.Context) error {
 func (c *connection) GetInfo(ctx context.Context, infoCodes []adbc.InfoCode) (array.RecordReader, error) {
 	c.getInfoMu.Lock()
 	defer c.getInfoMu.Unlock()
-	return c.Connection.GetInfo(ctx, infoCodes)
+	rdr, err := c.Connection.GetInfo(ctx, infoCodes)
+	if err != nil {
+		return nil, err
+	}
+	return rewriteInfo(c.alloc, rdr)
 }
 
 // statement wraps the upstream statement with GizmoSQL's execution
@@ -383,6 +394,15 @@ func (s *statement) SetSubstraitPlan(plan []byte) error {
 }
 
 func (s *statement) Prepare(ctx context.Context) error {
+	// Already prepared for the current query (SetSqlQuery/SetSubstraitPlan
+	// reset the flag), typically by Bind's auto-prepare: re-preparing would
+	// make upstream replace the prepared statement and drop the parameters
+	// already bound to it, so bind-then-prepare-then-execute (legal ADBC
+	// call order) failed with "Values were not provided for the following
+	// prepared statement parameters".
+	if s.prepared {
+		return nil
+	}
 	if err := s.Statement.Prepare(ctx); err != nil {
 		return err
 	}

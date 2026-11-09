@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools", "wheel"]
+requires = ["setuptools>=84.2.1", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -30,7 +30,10 @@ classifiers = [
     "Topic :: Database",
 ]
 dependencies = [
-    "adbc-driver-manager>=1.12.0",
+    # 1.13.0 (latest) requires Python 3.11; 3.10 stays on the 1.12 line so
+    # a patch release does not drop a supported Python.
+    "adbc-driver-manager>=1.13.0; python_version >= '3.11'",
+    "adbc-driver-manager>=1.12.0; python_version < '3.11'",
     # Deliberately permissive: the bindings only touch pyarrow through
     # adbc-driver-manager's dbapi. A >=25 floor conflicted with
     # downstream consumers (e.g. xorq pins pyarrow<22) even though the
@@ -45,14 +48,14 @@ Issues = "https://github.com/gizmodata/gizmosql-adbc/issues"
 
 [project.optional-dependencies]
 test = [
-    "pytest",
-    "pytest-cov",
-    "gizmosql>=1.32.0,<2",
-    "cryptography>=49",
+    "pytest>=9.2.0",
+    "pytest-cov>=7.1.0",
+    "gizmosql>=1.42.2,<2",
+    "cryptography>=50.0.2",
 ]
 dev = [
-    "ruff",
-    "build",
+    "ruff>=0.17.4",
+    "build>=1.6.1",
 ]
 
 [tool.ruff]

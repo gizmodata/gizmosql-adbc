@@ -11,6 +11,12 @@ on:
   # Called by release.yml and go-module.yml as the pre-publish test gate.
   workflow_call:
 
+# The "ci-" prefix keeps this group distinct from a calling workflow's own
+# group (release.yml / go-module.yml call this file as their test gate).
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/tags/') }}
+
 jobs:
   go:
     name: go (${{ matrix.os }})
@@ -71,6 +77,63 @@ jobs:
           pip install -e ".[test]"
           python -m pytest tests -v -q
 
+  validation:
+    # The adbc-drivers.org conformance suite (validation/; the suite is pinned
+    # in validation/pyproject.toml + uv.lock) against a GizmoSQL service
+    # container. It fails, never skips, when the server is unreachable or
+    # the driver library is missing (validation/tests/conftest.py).
+    name: adbc validation suite
+    runs-on: ubuntu-latest
+    services:
+      gizmosql:
+        # Pinned: the known-server-bug xfails in validation/ are strict and
+        # name this version, so a server upgrade is a deliberate change.
+        image: gizmodata/gizmosql:v1.42.2-slim
+        env:
+          GIZMOSQL_USERNAME: gizmosql_user
+          GIZMOSQL_PASSWORD: gizmosql_password
+        ports:
+          - 31447:31337
+    env:
+      GIZMOSQL_ADBC_TEST_URI: grpc://127.0.0.1:31447
+      GIZMOSQL_ADBC_TEST_USERNAME: gizmosql_user
+      GIZMOSQL_ADBC_TEST_PASSWORD: gizmosql_password
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+
+      - name: Build shared library
+        run: make -C go lib
+
+      - uses: astral-sh/setup-uv@v10
+        with:
+          python-version: "3.14"
+
+      - name: Wait for the GizmoSQL service
+        run: |
+          for _ in $(seq 1 120); do
+            if (exec 3<>/dev/tcp/127.0.0.1/31447) 2>/dev/null; then
+              echo "server is accepting connections"; exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::GizmoSQL service did not open port 31447 within 120s"
+          exit 1
+
+      - name: Run the validation suite
+        working-directory: validation
+        run: uv run --locked pytest tests -p no:cacheprovider -rfEsxX --junit-xml=validation-report.xml
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: validation-report
+          path: validation/validation-report.xml
+
   wheel-python-versions:
     # The py3-none-<platform> wheel is version-independent by design;
     # this job proves it on every supported CPython.
@@ -101,7 +164,7 @@ jobs:
       - name: Install wheel and run full test suite
         working-directory: python
         run: |
-          python -m pip install dist/*.whl pytest "gizmosql>=1.32.0,<2" cryptography
+          python -m pip install dist/*.whl pytest "gizmosql>=1.42.2,<2" cryptography
           python -c "import adbc_driver_gizmosql as m, sys; print(sys.version, m.__version__)"
           python -m pytest tests -q
 
@@ -130,7 +193,7 @@ jobs:
       - uses: mlugg/setup-zig@v2
         if: runner.os == 'Linux'
         with:
-          version: 0.14.1
+          version: 0.17.1
 
       - name: Install llvm-mingw (aarch64 C toolchain for cgo)
         if: matrix.os == 'windows-11-arm'
@@ -140,16 +203,16 @@ jobs:
           # cannot build the aarch64 cgo runtime. Use llvm-mingw's
           # native aarch64 UCRT toolchain instead.
           curl -sSL -o "$RUNNER_TEMP/llvm-mingw.zip" \
-            https://github.com/mstorsjo/llvm-mingw/releases/download/20260616/llvm-mingw-20260616-ucrt-aarch64.zip
+            https://github.com/mstorsjo/llvm-mingw/releases/download/20261104/llvm-mingw-20261104-ucrt-aarch64.zip
           unzip -q "$RUNNER_TEMP/llvm-mingw.zip" -d "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/llvm-mingw-20260616-ucrt-aarch64/bin" >> "$GITHUB_PATH"
+          echo "$RUNNER_TEMP/llvm-mingw-20261104-ucrt-aarch64/bin" >> "$GITHUB_PATH"
           echo "CC=aarch64-w64-mingw32-gcc" >> "$GITHUB_ENV"
 
       - name: Build shared library
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          MACOSX_DEPLOYMENT_TARGET: "12.0"  # Go (1.25+) requires macOS 12
         shell: bash
         run: |
           scripts/build_lib.sh
@@ -160,13 +223,13 @@ jobs:
 
       - name: Build platform wheel
         env:
-          MACOSX_DEPLOYMENT_TARGET: "11.0"
+          MACOSX_DEPLOYMENT_TARGET: "12.0"  # Go (1.25+) requires macOS 12
         shell: bash
         run: |
           # An empty _PYTHON_HOST_PLATFORM blanks the wheel platform tag,
           # so only export it on the macOS amd64 cross leg.
           if [ "${{ matrix.goarch }}" = "amd64" ] && [ "$RUNNER_OS" = "macOS" ]; then
-            export _PYTHON_HOST_PLATFORM="macosx-11.0-x86_64"
+            export _PYTHON_HOST_PLATFORM="macosx-12.0-x86_64"
           fi
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
           pip install build
@@ -229,5 +292,5 @@ jobs:
           python3.12 -m venv /tmp/venv
           WHEEL=$(find ../artifact -name '*.whl' | head -1)
           echo "wheel: $WHEEL"
-          /tmp/venv/bin/pip install -q "$WHEEL" pytest "gizmosql>=1.32.0,<2" cryptography
+          /tmp/venv/bin/pip install -q "$WHEEL" pytest "gizmosql>=1.42.2,<2" cryptography
           /tmp/venv/bin/python -m pytest tests -q

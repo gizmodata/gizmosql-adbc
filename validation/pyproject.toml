@@ -1,0 +1,18 @@
+# Licensed under the Apache License, Version 2.0.
+#
+# Environment for the adbc-drivers.org conformance suite
+# (https://github.com/adbc-drivers/validation). Not a published package:
+# run it with `uv run --project validation pytest ...` (see README.md).
+
+[project]
+name = "gizmosql-adbc-validation"
+version = "0"
+requires-python = ">=3.13"
+dependencies = [
+  # Pinned to the commit the suite was last run green against; bump
+  # deliberately and re-run (the suite has no releases).
+  "adbc-drivers-validation @ git+https://github.com/adbc-drivers/validation@f0631651f79bd01b67c5776be6fe3b7fbfbe083b",
+]
+
+[tool.uv]
+package = false

@@ -1,0 +1,7 @@
+GizmoSQL ADBC Driver
+Copyright 2025-2026 GizmoData LLC
+
+This product includes software developed by the ADBC Drivers Contributors
+(https://github.com/adbc-drivers): validation suite test glue and query
+overrides under validation/, adapted from adbc-drivers/quack and
+adbc-drivers/mysql, licensed under the Apache License, Version 2.0.

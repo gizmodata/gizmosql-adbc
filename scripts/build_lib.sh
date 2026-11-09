@@ -24,5 +24,12 @@ if [ "$(go env GOOS)" = "linux" ]; then
   export CC="zig cc -target $TARGET"
 fi
 
-CGO_ENABLED=1 go build -tags driverlib -buildmode=c-shared -o "build/libadbc_driver_gizmosql.$EXT" ./pkg/gizmosql
+# DRIVER_VERSION (e.g. v2.0.16, set by release.yml on tags) is reported as
+# ADBC_INFO_DRIVER_VERSION; unset, the library reports "unknown".
+LDFLAGS=""
+if [ -n "${DRIVER_VERSION:-}" ]; then
+  LDFLAGS="-X github.com/gizmodata/gizmosql-adbc/go/gizmosql.DriverVersion=${DRIVER_VERSION}"
+fi
+
+CGO_ENABLED=1 go build -tags driverlib -buildmode=c-shared -ldflags "$LDFLAGS" -o "build/libadbc_driver_gizmosql.$EXT" ./pkg/gizmosql
 ls -la build/

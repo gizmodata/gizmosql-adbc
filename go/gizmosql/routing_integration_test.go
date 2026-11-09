@@ -214,8 +214,8 @@ func TestIntegrationConnectionOptionsDelegate(t *testing.T) {
 		t.Fatal("connection wrapper does not expose adbc.GetSetOptions")
 	}
 	// dbt's flow: set the catalog at connect time, read it back later via
-	// adbc_current_catalog. (A get without a prior set is a server-side
-	// session error, unrelated to the wrapper.)
+	// adbc_current_catalog. (A get without a prior set is covered by
+	// TestIntegrationCurrentCatalogOnFreshConnection.)
 	if err := opts.SetOption("adbc.connection.catalog", "memory"); err != nil {
 		t.Fatalf("SetOption(adbc.connection.catalog): %v", err)
 	}
