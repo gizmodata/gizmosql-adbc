@@ -63,7 +63,12 @@ jobs:
         working-directory: go
         run: go test -v -run Integration ./...
 
-      - name: Build shared library
+      - uses: mlugg/setup-zig@v2  # scripts/build_lib.sh builds Linux with zig cc (glibc 2.17)
+        if: runner.os == 'Linux'
+        with:
+          version: 0.17.1
+
+      - name: Build shared library (checks its exports)
         run: make -C go lib
 
       - name: C-ABI smoke test (Python driver manager)
@@ -106,7 +111,11 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
-      - name: Build shared library
+      - uses: mlugg/setup-zig@v2  # scripts/build_lib.sh builds Linux with zig cc (glibc 2.17)
+        with:
+          version: 0.17.1
+
+      - name: Build shared library (checks its exports)
         run: make -C go lib
 
       - uses: astral-sh/setup-uv@v10.3.3  # upstream publishes no floating major tag
@@ -151,7 +160,11 @@ jobs:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
 
-      - name: Build shared library and wheel
+      - uses: mlugg/setup-zig@v2  # scripts/build_lib.sh builds Linux with zig cc (glibc 2.17)
+        with:
+          version: 0.17.1
+
+      - name: Build shared library (checks its exports) and wheel
         run: |
           make -C go lib
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
@@ -175,12 +188,18 @@ jobs:
       matrix:
         include:
           - os: ubuntu-latest
+            wheel_tag: 'manylinux*_x86_64'
           - os: ubuntu-24.04-arm
+            wheel_tag: 'manylinux*_aarch64'
           - os: macos-latest
+            wheel_tag: macosx_12_0_arm64
           - os: macos-latest
+            wheel_tag: macosx_12_0_x86_64
             goarch: amd64
           - os: windows-latest
+            wheel_tag: 'win_amd64'
           - os: windows-11-arm
+            wheel_tag: 'win_arm64'
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v7
@@ -208,7 +227,7 @@ jobs:
           echo "$RUNNER_TEMP/llvm-mingw-20261104-ucrt-aarch64/bin" >> "$GITHUB_PATH"
           echo "CC=aarch64-w64-mingw32-gcc" >> "$GITHUB_ENV"
 
-      - name: Build shared library
+      - name: Build shared library (checks its exports)
         env:
           GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: "1"  # explicit: defaults to 0 when GOARCH != host arch
@@ -226,11 +245,8 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: "12.0"  # Go (1.25+) requires macOS 12
         shell: bash
         run: |
-          # An empty _PYTHON_HOST_PLATFORM blanks the wheel platform tag,
-          # so only export it on the macOS amd64 cross leg.
-          if [ "${{ matrix.goarch }}" = "amd64" ] && [ "$RUNNER_OS" = "macOS" ]; then
-            export _PYTHON_HOST_PLATFORM="macosx-12.0-x86_64"
-          fi
+          # python/setup.py tags a macOS wheel from the bundled dylib's own architecture and
+          # minimum macOS (Mach-O header), not from the build Python (universal2).
           cp go/build/libadbc_driver_gizmosql.* python/src/adbc_driver_gizmosql/
           pip install build
           cd python && python -m build --wheel
@@ -248,6 +264,13 @@ jobs:
       - name: Check the glibc ceiling (2.17)
         if: runner.os == 'Linux'
         run: scripts/check_glibc.sh go/build/libadbc_driver_gizmosql.so python/dist/*.whl
+
+      - name: Check the wheel's platform tag against the library inside
+        shell: bash
+        run: |
+          ls python/dist/*.whl
+          [ "$(ls python/dist/*.whl | wc -l)" -eq 1 ]
+          scripts/check_wheel_tag.sh '${{ matrix.wheel_tag }}' python/dist/*.whl
 
       - uses: actions/upload-artifact@v7
         with:

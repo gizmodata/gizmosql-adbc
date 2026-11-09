@@ -11,6 +11,39 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.17] - 2026-11-09
+
+The shared library and wheels now meet the ADBC
+[shared-library requirements](https://adbc-drivers.org/building-drivers/shared-library-requirements.html).
+
+### Fixed
+- **The library exported ~70-260 internal symbols** (Go's `//export` functions such as
+  `GizmoSQLDatabaseNew`, and cgo glue such as `_cgo_panic` and `crosscall2`), against the rule
+  that a driver exports nothing but `Adbc*` names. It now exports only the ADBC API,
+  `AdbcDriverInit`, `AdbcDriverGizmosqlInit` (the entrypoint driver managers derive from the
+  file name) and `AdbcDriverGizmoSQLInit`, through a version script (Linux), an exported-symbols
+  list (macOS) and a `.def` file (Windows) in `go/pkg/gizmosql/`.
+- **The macOS arm64 wheel was tagged `universal2`** (`macosx_12_0_universal2`) although its
+  library is arm64 only, so pip would install it on an Intel Mac where it cannot load. Each macOS
+  wheel's tag is now read from the bundled library itself (architecture and minimum macOS from
+  its Mach-O header): `macosx_12_0_arm64` and `macosx_12_0_x86_64`. The 2.0.16 and older
+  universal2 wheels stay on PyPI; pip prefers the arm64 wheel from 2.0.17 on.
+- The macOS library's minimum OS (12.0) is now passed to the C compiler and linker as
+  `-mmacosx-version-min`, because Go's build cache ignores `MACOSX_DEPLOYMENT_TARGET`.
+
+### Deprecated
+- `GizmoSQLDriverInit` and `GizmoSqlDriverInit` stay exported as aliases of
+  `AdbcDriverGizmosqlInit` and will be removed in 3.0. Load the driver by file name or manifest
+  (no entrypoint), or name `AdbcDriverGizmosqlInit` / `AdbcDriverInit`.
+
+### Added
+- `go/internal/checkexports` checks a built library's exports (ELF, Mach-O and PE) and runs after
+  every build in `scripts/build_lib.sh`, which every build now goes through (`make -C go lib`,
+  CI's test jobs and the release). `scripts/check_wheel_tag.sh` checks each built wheel's
+  platform tag in CI, and for macOS that the dylib's architecture and minos match it.
+- Python tests that load the library through every exported entrypoint, the deprecated aliases
+  included, and that internal symbols are not exported.
+
 ## [2.0.16] - 2026-11-09
 
 ### Fixed

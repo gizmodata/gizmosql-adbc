@@ -261,6 +261,13 @@ so every ADBC driver manager can load the driver **by name**:
 make -C go lib   # produces go/build/libadbc_driver_gizmosql.{so,dylib,dll}
 ```
 
+(`scripts/build_lib.sh` does the work; Linux builds need [zig](https://ziglang.org/) for the
+glibc 2.17 floor.) The library follows the ADBC
+[shared-library requirements](https://adbc-drivers.org/building-drivers/shared-library-requirements.html):
+it exports `AdbcDriverInit` and `AdbcDriverGizmosqlInit` (the entrypoint driver managers derive
+from the file name) and no other non-`Adbc` symbols, except `GizmoSQLDriverInit` and
+`GizmoSqlDriverInit`, deprecated aliases that will be removed in 3.0.
+
 Copy `packaging/gizmosql.toml.in` to a driver search path as
 `gizmosql.toml` (e.g. `~/.config/adbc/drivers/` on Linux,
 `~/Library/Application Support/ADBC/Drivers/` on macOS, or any directory
