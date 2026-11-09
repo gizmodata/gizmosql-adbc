@@ -12,11 +12,17 @@
 # and GizmoSqlDriverInit aliases (to be removed in 3.0), per the ADBC shared-library requirements
 # (https://adbc-drivers.org/building-drivers/shared-library-requirements.html). The export lists
 # live next to the package in go/pkg/gizmosql: exports_linux.map (version script),
-# exports_darwin.txt (ld64 exported-symbols list) and exports_windows.def. On Windows,
-# -Wl,--export-all-symbols makes Go skip its own .def file (which lists every //export function,
-# e.g. GizmoSQLDatabaseNew), and --exclude-all-symbols then turns automatic exporting off again,
-# so the DLL exports what the C code marks dllexport (the Adbc* wrappers in utils.c) plus our
-# .def. `go run ./internal/checkexports` (run below) verifies the result.
+# exports_darwin.txt (ld64 exported-symbols list) and exports_windows.def.
+#
+# Windows: Go's linker writes its own .def file listing every //export function
+# (GizmoSQLDatabaseNew, ...) unless its extldflags contain the exact string
+# "-Wl,--export-all-symbols" (cmd/link/internal/ld/lib.go). The "-L" in front makes the C
+# compiler driver read that string as a library search directory, so the linker never sees it:
+# GNU ld and LLVM lld (whose --export-all-symbols would override everything, as it did on
+# windows/arm64 with llvm-mingw) then export only what the C code marks dllexport (the Adbc*
+# wrappers in utils.c) plus exports_windows.def (the Go-exported entrypoints).
+# `go run ./internal/checkexports` (run below) verifies the result and fails the build if Go
+# ever changes this.
 #
 # On macOS the library's minimum OS (LC_BUILD_VERSION minos) is MACOSX_DEPLOYMENT_TARGET
 # (default 12.0, the oldest macOS Go 1.26 supports). It is passed to the C compiler and linker
@@ -60,7 +66,7 @@ fi
 case "$goos" in
   linux)   EXTLD="-Wl,--version-script=$dir/exports_linux.map" ;;
   darwin)  EXTLD="-Wl,-exported_symbols_list,$dir/exports_darwin.txt" ;;
-  windows) EXTLD="-Wl,--export-all-symbols -Wl,--exclude-all-symbols $dir/exports_windows.def" ;;
+  windows) EXTLD="-L -Wl,--export-all-symbols $dir/exports_windows.def" ;;
 esac
 
 # DRIVER_VERSION (e.g. v2.0.17, set by release.yml on tags) is reported as
