@@ -10,6 +10,16 @@ platform shared libraries, publishes the wheels to PyPI via trusted
 publishing, and creates the GitHub release with the CHANGELOG section as
 notes. Confirm with `gh run watch` and `pip index versions adbc-driver-gizmosql`.
 
+## Shared library exports and wheel tags
+
+Every build of the library goes through `scripts/build_lib.sh` (`make -C go lib` calls it), which
+links with the export lists in `go/pkg/gizmosql/exports_{linux.map,darwin.txt,windows.def}` and
+then runs `go run ./internal/checkexports` (from `go/`): only `Adbc*` plus the deprecated
+`GizmoSQLDriverInit`/`GizmoSqlDriverInit` aliases may be exported. A new Go `//export` entrypoint
+that must stay visible on Windows also goes into `exports_windows.def`. `python/setup.py` tags a
+macOS wheel from the bundled dylib's own architecture and minos, and CI checks every wheel with
+`scripts/check_wheel_tag.sh`.
+
 ## After every driver release: bump the dependents, recursively
 
 Several repos pin an exact driver version and ship the driver inside their

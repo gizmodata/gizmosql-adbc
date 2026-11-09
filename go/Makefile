@@ -20,8 +20,10 @@ all: lib
 
 lib: $(LIB)
 
-$(LIB): $(wildcard gizmosql/*.go pkg/gizmosql/* pkg/include/arrow-adbc/*)
-	go build -tags driverlib -buildmode=c-shared -o $(LIB) ./pkg/gizmosql
+# scripts/build_lib.sh sets the export lists, the Linux glibc 2.17 toolchain (zig cc) and the
+# macOS deployment target, and checks the library's exports.
+$(LIB): $(wildcard gizmosql/*.go pkg/gizmosql/* pkg/include/arrow-adbc/* internal/checkexports/*.go ../scripts/build_lib.sh)
+	../scripts/build_lib.sh
 
 test:
 	go test ./...
