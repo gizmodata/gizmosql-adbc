@@ -11,6 +11,14 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.18] - 2026-11-09
+
+### Changed
+
+- **README**: the PyPI page shows the ADBC conformance badge: the adbc-drivers.org validation suite runs in CI, and every release waits for it.
+
+No code changes.
+
 ## [2.0.17] - 2026-11-09
 
 The shared library and wheels now meet the ADBC
