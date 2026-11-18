@@ -102,4 +102,6 @@ parameters — through `ExecuteUpdate` (DoPut) so it executes immediately, and
 materializes `RETURNING` results. Keep that invariant when touching
 `ExecuteQuery`; the live-server tests in `routing_integration_test.go` and
 the Python `TestExecuteAutoDetect` / `TestBoundParameterRouting` suites
-guard it. Run them with `GIZMOSQL_SERVER_BIN=<path to gizmosql_server>`.
+guard it. Run them with `GIZMOSQL_SERVER_BIN=<path to gizmosql_server>`;
+`scripts/go_integration_tests.sh` (what CI runs) fails if any Go `TestIntegration*` test
+skips or does not pass.

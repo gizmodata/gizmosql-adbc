@@ -55,13 +55,20 @@ jobs:
           python - <<'EOF'
           from gizmosql._install import ensure_binary, server_release_tag
           from gizmosql._version import __version__
+          import os
           path = ensure_binary(version=server_release_tag(__version__), channel="stable")
           print(f"server binary: {path}")
+          if not os.access(path, os.X_OK):
+              raise SystemExit(f"{path} is not an executable gizmosql_server")
+          # The integration tests use this binary, not one they find on their own.
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as env:
+              env.write(f"GIZMOSQL_SERVER_BIN={path}\n")
           EOF
 
-      - name: Integration tests
-        working-directory: go
-        run: go test -v -run Integration ./...
+      # Fails unless every TestIntegration* test ran and passed: they skip when no server binary
+      # is found, which would otherwise leave this gate green with nothing tested.
+      - name: Integration tests (all ran, none skipped)
+        run: scripts/go_integration_tests.sh
 
       - uses: mlugg/setup-zig@v2  # scripts/build_lib.sh builds Linux with zig cc (glibc 2.17)
         if: runner.os == 'Linux'

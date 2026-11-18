@@ -35,6 +35,11 @@ Release files for the one-line installer at
   Single-quoted TOML strings are literal, so that was a path with two backslashes; it is now one.
 
 ### Changed
+- **The Go live-server tests can no longer pass by skipping.** They skip when no `gizmosql_server`
+  is found, and nothing checked that they ran, so a change to where the server binary lands would
+  have left the release gate green with none of them run. CI now passes the binary it fetched as
+  `GIZMOSQL_SERVER_BIN`, and `scripts/go_integration_tests.sh` fails when any `TestIntegration*`
+  test is skipped or fewer pass than the package defines (27 today).
 - A `workflow_dispatch` run of the release workflow builds, packages and checks everything (a `/`
   in a branch name becomes `-` in the archive names) and stops before the GitHub Release and PyPI,
   so a branch can prove the release jobs before it is tagged.
