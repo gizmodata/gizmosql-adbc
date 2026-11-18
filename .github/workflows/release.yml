@@ -132,17 +132,13 @@ jobs:
       - name: Package artifact
         shell: bash
         run: |
-          VERSION="${GITHUB_REF_NAME:-dev}"
-          PKG="libadbc_driver_gizmosql-${VERSION}-${{ matrix.platform }}"
-          mkdir -p "dist/$PKG"
-          cp go/build/libadbc_driver_gizmosql.${{ matrix.ext }} "dist/$PKG/"
-          cp packaging/gizmosql.toml.in LICENSE "dist/$PKG/"
-          cd dist && tar czf "$PKG.tar.gz" "$PKG"
-          cp ../python/dist/*.whl .
+          scripts/package_lib.sh "${{ matrix.platform }}" "$GITHUB_REF_NAME"
+          cp python/dist/*.whl dist/
 
       - uses: actions/upload-artifact@v7
         with:
           name: dist-${{ matrix.platform }}
+          if-no-files-found: error
           path: |
             dist/*.tar.gz
             dist/*.whl
@@ -155,8 +151,16 @@ jobs:
 
       - uses: actions/download-artifact@v8
         with:
+          pattern: dist-*
           path: dist
           merge-multiple: true
+
+      # install.adbc.gizmodata.com downloads a library archive and refuses it unless it matches
+      # SHA256SUMS. Six archives and six wheels, each archive's top folder holds the library, and
+      # SHA256SUMS lists all twelve and verifies (`sha256sum -c`). Runs on workflow_dispatch too,
+      # so a branch can prove it before a tag.
+      - name: Check the release files and write SHA256SUMS
+        run: scripts/check_release_files.sh dist
 
       - name: Extract release notes from CHANGELOG.md
         run: |
@@ -172,11 +176,15 @@ jobs:
           cat release-notes.md
 
       - uses: softprops/action-gh-release@v3
+        # Publish only on real version tags (a workflow_dispatch run stops after the checks).
+        if: startsWith(github.ref, 'refs/tags/v')
         with:
           body_path: release-notes.md
+          fail_on_unmatched_files: true
           files: |
             dist/*.tar.gz
             dist/*.whl
+            dist/SHA256SUMS
 
   pypi-publish:
     needs: build-libs
@@ -186,17 +194,21 @@ jobs:
     permissions:
       id-token: write
     steps:
+      # Only this workflow's dist-* artifacts: the CI gate's own lib/wheel artifacts (same file
+      # names, different builds) must not reach PyPI, or PyPI's wheels would not be the ones
+      # SHA256SUMS on the GitHub Release lists.
       - uses: actions/download-artifact@v8
         with:
+          pattern: dist-*
           path: artifacts
           merge-multiple: true
 
       - name: Collect wheels
         run: |
           mkdir -p dist
-          find artifacts -name "*.whl" -exec cp {} dist/ \;
+          cp artifacts/*.whl dist/
           ls -la dist/
-          test -n "$(ls dist/*.whl 2>/dev/null)"
+          test "$(find dist -name '*.whl' | wc -l)" -eq 6
 
       - name: Publish distribution to PyPI (OIDC trusted publishing)
         uses: pypa/gh-action-pypi-publish@release/v1

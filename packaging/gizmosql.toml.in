@@ -1,6 +1,7 @@
 # ADBC driver manifest template for GizmoSQL.
 #
-# Fill in the shared-library path(s) for your platform(s) and install as
+# Fill in the shared-library path(s) for your platform(s), absolute (a driver
+# manager takes the path as is), and install as
 # `gizmosql.toml` into an ADBC driver search path, e.g.:
 #   Linux:   ~/.config/adbc/drivers/gizmosql.toml
 #   macOS:   ~/Library/Application Support/ADBC/Drivers/gizmosql.toml
@@ -30,5 +31,6 @@ linux_amd64 = '@PREFIX@/libadbc_driver_gizmosql.so'
 linux_arm64 = '@PREFIX@/libadbc_driver_gizmosql.so'
 macos_amd64 = '@PREFIX@/libadbc_driver_gizmosql.dylib'
 macos_arm64 = '@PREFIX@/libadbc_driver_gizmosql.dylib'
-windows_amd64 = '@PREFIX@\\libadbc_driver_gizmosql.dll'
-windows_arm64 = '@PREFIX@\\libadbc_driver_gizmosql.dll'
+# Single-quoted TOML strings are literal: one backslash is one backslash.
+windows_amd64 = '@PREFIX@\libadbc_driver_gizmosql.dll'
+windows_arm64 = '@PREFIX@\libadbc_driver_gizmosql.dll'

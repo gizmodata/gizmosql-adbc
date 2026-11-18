@@ -11,6 +11,33 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+## [2.0.19] - 2026-11-18
+
+Release files for the one-line installer at
+[install.adbc.gizmodata.com](https://github.com/gizmodata/adbc-install). No driver code changes.
+
+### Added
+- **`SHA256SUMS` on every GitHub Release**: the SHA-256 of each library archive and wheel. The
+  release job writes it, verifies it with `sha256sum -c` and attaches it; the installer refuses an
+  archive that does not match it.
+- The release job checks each library archive's layout before publishing: one top folder named
+  like the archive (`libadbc_driver_gizmosql-vX.Y.Z-<platform>/`) holding the platform's library.
+  The archives also carry `NOTICE` now, next to `LICENSE`.
+
+### Fixed
+- **PyPI got wheels from the test gate's builds, not the release's own.** The PyPI job collected
+  every `*.whl` in the run, and the CI gate (called by the release workflow) uploads wheels under the
+  same file names, so three of the six 2.0.18 wheels on PyPI (macOS arm64, Linux aarch64, Windows
+  amd64) are different files from the ones on the GitHub Release. The PyPI job and the release job
+  now take only the release build's artifacts, so PyPI's wheels are the ones `SHA256SUMS` lists.
+- `packaging/gizmosql.toml.in`: the Windows library paths were written `'@PREFIX@\\libadbc_driver_gizmosql.dll'`.
+  Single-quoted TOML strings are literal, so that was a path with two backslashes; it is now one.
+
+### Changed
+- A `workflow_dispatch` run of the release workflow builds, packages and checks everything (a `/`
+  in a branch name becomes `-` in the archive names) and stops before the GitHub Release and PyPI,
+  so a branch can prove the release jobs before it is tagged.
+
 ## [2.0.18] - 2026-11-09
 
 ### Changed

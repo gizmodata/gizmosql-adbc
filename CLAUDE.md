@@ -10,6 +10,25 @@ platform shared libraries, publishes the wheels to PyPI via trusted
 publishing, and creates the GitHub release with the CHANGELOG section as
 notes. Confirm with `gh run watch` and `pip index versions adbc-driver-gizmosql`.
 
+When a change touches `release.yml`, `scripts/package_lib.sh` or
+`scripts/check_release_files.sh`, run the release workflow on the branch first
+(`gh workflow run release.yml --ref <branch>`): it builds, packages and checks
+everything and stops before the GitHub Release and PyPI.
+
+The release carries `SHA256SUMS` (six archives + six wheels), which
+install.adbc.gizmodata.com checks every download against, and each archive is
+`libadbc_driver_gizmosql-vX.Y.Z-<platform>/libadbc_driver_gizmosql.<ext>`
+(`scripts/check_release_files.sh` enforces both before publishing; keep the
+layout, the installer relies on it). After a release, verify what shipped:
+
+```
+d=$(mktemp -d) && cd "$d" && gh release download vX.Y.Z -R gizmodata/gizmosql-adbc \
+  && sha256sum -c SHA256SUMS
+curl -s https://pypi.org/pypi/adbc-driver-gizmosql/X.Y.Z/json | python3 -c 'import json,sys; \
+  [print(u["digests"]["sha256"]+"  "+u["filename"]) for u in json.load(sys.stdin)["urls"]]' \
+  | sha256sum -c   # PyPI's wheels are the release's wheels
+```
+
 ## Shared library exports and wheel tags
 
 Every build of the library goes through `scripts/build_lib.sh` (`make -C go lib` calls it), which
