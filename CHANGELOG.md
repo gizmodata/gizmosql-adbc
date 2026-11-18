@@ -11,6 +11,13 @@ Python bindings), succeeding the 1.x pure-Python driver.
 
 ## [Unreleased]
 
+### Changed
+- **README** and the PyPI page: installing without Python is one line,
+  `curl https://install.adbc.gizmodata.com/gizmosql | sh` (Linux, macOS) or
+  `irm https://install.adbc.gizmodata.com/gizmosql.ps1 | iex` (Windows): it installs the release's
+  shared library, checked against its `SHA256SUMS`, and a `gizmosql` driver manifest, so any ADBC
+  driver manager loads it as `driver = "gizmosql"` ([gizmodata/adbc-install](https://github.com/gizmodata/adbc-install)).
+
 ## [2.0.19] - 2026-11-18
 
 Release files for the one-line installer at

@@ -254,9 +254,27 @@ result, err := gizmosql.GetOAuthToken(ctx, gizmosql.OAuthConfig{
 
 ## Usage (any language, via driver manifest)
 
-Build (or download from a release) the shared library, then install a
-[driver manifest](https://arrow.apache.org/adbc/current/format/driver_manifests.html)
-so every ADBC driver manager can load the driver **by name**:
+One line installs the latest release's shared library and its
+[driver manifest](https://arrow.apache.org/adbc/current/format/driver_manifests.html),
+so every ADBC driver manager loads the driver **by name** (`driver = "gizmosql"`), no Python
+needed:
+
+```bash
+curl https://install.adbc.gizmodata.com/gizmosql | sh                 # Linux, macOS
+```
+
+```powershell
+irm https://install.adbc.gizmodata.com/gizmosql.ps1 | iex             # Windows
+```
+
+The installer checks the download against the release's `SHA256SUMS`. To pin a version
+(`curl https://install.adbc.gizmodata.com/gizmosql | ADBC_VERSION=<version> sh`), install
+system-wide or into another directory, or uninstall, see
+[gizmodata/adbc-install](https://github.com/gizmodata/adbc-install). If another vendor's
+`gizmosql` driver manifest is installed, the installer backs it up, replaces it and prints the
+command that restores it; `ADBC_NAME=<other name>` installs side by side instead.
+
+Or build (or download from a release) the shared library yourself, then install the manifest:
 
 ```bash
 make -C go lib   # produces go/build/libadbc_driver_gizmosql.{so,dylib,dll}
