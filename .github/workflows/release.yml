@@ -160,7 +160,7 @@ jobs:
       # SHA256SUMS lists all twelve and verifies (`sha256sum -c`). Runs on workflow_dispatch too,
       # so a branch can prove it before a tag.
       - name: Check the release files and write SHA256SUMS
-        run: scripts/check_release_files.sh dist
+        run: scripts/check_release_files.sh dist "$GITHUB_REF_NAME"
 
       - name: Extract release notes from CHANGELOG.md
         run: |

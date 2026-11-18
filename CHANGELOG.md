@@ -20,8 +20,9 @@ Release files for the one-line installer at
 - **`SHA256SUMS` on every GitHub Release**: the SHA-256 of each library archive and wheel. The
   release job writes it, verifies it with `sha256sum -c` and attaches it; the installer refuses an
   archive that does not match it.
-- The release job checks each library archive's layout before publishing: one top folder named
-  like the archive (`libadbc_driver_gizmosql-vX.Y.Z-<platform>/`) holding the platform's library.
+- The release job checks each library archive's layout before publishing: one archive per
+  platform, unpacking to one folder named like the archive (`libadbc_driver_gizmosql-vX.Y.Z-<platform>/`)
+  that holds the library, built for that platform.
   The archives also carry `NOTICE` now, next to `LICENSE`.
 
 ### Fixed
