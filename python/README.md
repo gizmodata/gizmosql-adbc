@@ -48,6 +48,12 @@ Platform wheels are published for Linux (amd64/arm64, glibc 2.17 or newer, e.g. 
 (arm64/amd64), and Windows (amd64/arm64). To develop from source, see
 the [repository](https://github.com/gizmodata/gizmosql-adbc).
 
+Not using Python? The same driver loads by name (`driver = "gizmosql"`) in any ADBC driver
+manager (C, C++, Go, Rust, R, DuckDB) after
+`curl https://install.adbc.gizmodata.com/gizmosql | sh` (Linux, macOS) or
+`irm https://install.adbc.gizmodata.com/gizmosql.ps1 | iex` (Windows); see the
+[repository README](https://github.com/gizmodata/gizmosql-adbc#usage-any-language-via-driver-manifest).
+
 ## Usage
 
 ### Start a GizmoSQL server
